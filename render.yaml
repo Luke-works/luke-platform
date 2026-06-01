@@ -1,0 +1,229 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Luke platform — bundled non-prod blueprint
+#
+# One Render Blueprint that deploys luke-core-engine + luke-core-ui together for
+# three shared non-prod environments: platform-dev, platform-qa, platform-uat.
+#
+# Topology
+#   • One shared Postgres instance (luke-nonprod-db). Each environment is
+#     isolated in its own schema via DB_SCHEMA (platform_dev/qa/uat) — the engine
+#     sets currentSchema and creates the schema on first connect.
+#   • Each env = an engine (Docker, from luke-core-engine) + a UI (static, from
+#     luke-core-ui). Both are pulled from their own repos via `repo:`.
+#   • Branch per env: develop → dev, qa → qa, uat → uat.
+#
+# Prerequisites (one-time)
+#   1. Connect THIS repo to Render as a Blueprint.
+#   2. Grant Render access to lukeadministrator/luke-core-engine and
+#      lukeadministrator/luke-core-ui (so the per-service `repo:` works).
+#   3. Create the branches `develop`, `qa`, `uat` in BOTH code repos.
+#
+# Notes
+#   • VITE_API_BASE_URL is baked into the UI at build time and must be the env's
+#     engine URL. ALLOWED_ORIGINS on the engine must be the env's UI URL.
+#     These use the deterministic https://<service-name>.onrender.com URLs; if
+#     Render assigns a suffixed hostname, update both values accordingly.
+#   • Camunda admin password is generated per env — retrieve from the Render
+#     dashboard (Environment) after first deploy.
+# ─────────────────────────────────────────────────────────────────────────────
+
+databases:
+  - name: luke-nonprod-db
+    plan: basic-256mb
+    databaseName: luke_camunda
+    user: luke
+    region: ohio
+    postgresMajorVersion: "16"
+
+services:
+  # ── platform-dev ──────────────────────────────────────────────────────────
+  - type: web
+    name: platform-dev-engine
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-core-engine
+    branch: develop
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: DB_SCHEMA
+        value: platform_dev
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: luke-nonprod-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: luke-nonprod-db
+          property: port
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: luke-nonprod-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: luke-nonprod-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: luke-nonprod-db
+          property: password
+      - key: CAMUNDA_ADMIN_USER
+        value: admin
+      - key: CAMUNDA_ADMIN_PASSWORD
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://platform-dev-ui.onrender.com
+
+  - type: web
+    name: platform-dev-ui
+    runtime: static
+    repo: https://github.com/lukeadministrator/luke-core-ui
+    branch: develop
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_API_BASE_URL
+        value: https://platform-dev-engine.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # ── platform-qa ───────────────────────────────────────────────────────────
+  - type: web
+    name: platform-qa-engine
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-core-engine
+    branch: qa
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: DB_SCHEMA
+        value: platform_qa
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: luke-nonprod-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: luke-nonprod-db
+          property: port
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: luke-nonprod-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: luke-nonprod-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: luke-nonprod-db
+          property: password
+      - key: CAMUNDA_ADMIN_USER
+        value: admin
+      - key: CAMUNDA_ADMIN_PASSWORD
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://platform-qa-ui.onrender.com
+
+  - type: web
+    name: platform-qa-ui
+    runtime: static
+    repo: https://github.com/lukeadministrator/luke-core-ui
+    branch: qa
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_API_BASE_URL
+        value: https://platform-qa-engine.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # ── platform-uat ──────────────────────────────────────────────────────────
+  - type: web
+    name: platform-uat-engine
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-core-engine
+    branch: uat
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: DB_SCHEMA
+        value: platform_uat
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: luke-nonprod-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: luke-nonprod-db
+          property: port
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: luke-nonprod-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: luke-nonprod-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: luke-nonprod-db
+          property: password
+      - key: CAMUNDA_ADMIN_USER
+        value: admin
+      - key: CAMUNDA_ADMIN_PASSWORD
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://platform-uat-ui.onrender.com
+
+  - type: web
+    name: platform-uat-ui
+    runtime: static
+    repo: https://github.com/lukeadministrator/luke-core-ui
+    branch: uat
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_API_BASE_URL
+        value: https://platform-uat-engine.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
