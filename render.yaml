@@ -279,117 +279,117 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
 
-  # ── platform-uat ──────────────────────────────────────────────────────────
-  - type: web
-    name: platform-uat-engine
-    runtime: docker
-    repo: https://github.com/lukeadministrator/luke-core-engine
-    branch: uat
-    plan: starter
-    region: ohio
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /actuator/health
-    envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: postgres
-      - key: DB_SCHEMA
-        value: platform_uat
-      - key: POSTGRES_HOST
-        fromDatabase:
-          name: luke-nonprod-db
-          property: host
-      - key: POSTGRES_PORT
-        fromDatabase:
-          name: luke-nonprod-db
-          property: port
-      - key: POSTGRES_DATABASE
-        fromDatabase:
-          name: luke-nonprod-db
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: luke-nonprod-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: luke-nonprod-db
-          property: password
-      - key: CAMUNDA_ADMIN_USER
-        value: admin
-      - key: CAMUNDA_ADMIN_PASSWORD
-        generateValue: true
-      - key: ALLOWED_ORIGINS
-        value: https://platform-uat-ui.onrender.com
-      # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
-      - key: LUKE_AUTH_GATEWAY_ENABLED
-        value: "true"
-      - key: LUKE_AUTH_GATEWAY_JWKS_URL
-        value: https://platform-uat-auth.onrender.com/.well-known/jwks.json
-
-  # ── platform-uat-auth (consumer gateway) ────────────────────────────────────
-  - type: web
-    name: platform-uat-auth
-    runtime: docker
-    repo: https://github.com/lukeadministrator/luke-auth-engine
-    branch: uat
-    plan: starter
-    region: ohio
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /actuator/health
-    envVars:
-      - key: CORE_ENGINE_URL
-        value: https://platform-uat-engine.onrender.com
-      - key: CLERK_JWKS_URL
-        value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
-      - key: CLERK_ISSUER
-        value: https://gorgeous-seal-77.clerk.accounts.dev
-      - key: ALLOWED_ORIGINS
-        value: https://platform-uat-consumer-ui.onrender.com
-      # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
-
-  - type: web
-    name: platform-uat-ui
-    runtime: static
-    repo: https://github.com/lukeadministrator/luke-core-ui
-    branch: uat
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    pullRequestPreviewsEnabled: false
-    envVars:
-      - key: NODE_VERSION
-        value: 22.12.0
-      - key: VITE_API_BASE_URL
-        value: https://platform-uat-engine.onrender.com
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-
-  # ── platform-uat-consumer-ui (end-user app) ────────────────────────────────
-  - type: web
-    name: platform-uat-consumer-ui
-    runtime: static
-    repo: https://github.com/lukeadministrator/luke-consumer-ui
-    branch: uat
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    pullRequestPreviewsEnabled: false
-    envVars:
-      - key: NODE_VERSION
-        value: 22.12.0
-      - key: VITE_CLERK_PUBLISHABLE_KEY
-        value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
-      - key: VITE_API_BASE_URL
-        value: https://platform-uat-auth.onrender.com
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
+  # ── platform-uat (DISABLED — uncomment this block to enable the uat env) ──
+#   - type: web
+#     name: platform-uat-engine
+#     runtime: docker
+#     repo: https://github.com/lukeadministrator/luke-core-engine
+#     branch: uat
+#     plan: starter
+#     region: ohio
+#     dockerfilePath: ./Dockerfile
+#     healthCheckPath: /actuator/health
+#     envVars:
+#       - key: SPRING_PROFILES_ACTIVE
+#         value: postgres
+#       - key: DB_SCHEMA
+#         value: platform_uat
+#       - key: POSTGRES_HOST
+#         fromDatabase:
+#           name: luke-nonprod-db
+#           property: host
+#       - key: POSTGRES_PORT
+#         fromDatabase:
+#           name: luke-nonprod-db
+#           property: port
+#       - key: POSTGRES_DATABASE
+#         fromDatabase:
+#           name: luke-nonprod-db
+#           property: database
+#       - key: DB_USERNAME
+#         fromDatabase:
+#           name: luke-nonprod-db
+#           property: user
+#       - key: DB_PASSWORD
+#         fromDatabase:
+#           name: luke-nonprod-db
+#           property: password
+#       - key: CAMUNDA_ADMIN_USER
+#         value: admin
+#       - key: CAMUNDA_ADMIN_PASSWORD
+#         generateValue: true
+#       - key: ALLOWED_ORIGINS
+#         value: https://platform-uat-ui.onrender.com
+#       # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
+#       - key: LUKE_AUTH_GATEWAY_ENABLED
+#         value: "true"
+#       - key: LUKE_AUTH_GATEWAY_JWKS_URL
+#         value: https://platform-uat-auth.onrender.com/.well-known/jwks.json
+#
+#   # ── platform-uat-auth (consumer gateway) ────────────────────────────────────
+#   - type: web
+#     name: platform-uat-auth
+#     runtime: docker
+#     repo: https://github.com/lukeadministrator/luke-auth-engine
+#     branch: uat
+#     plan: starter
+#     region: ohio
+#     dockerfilePath: ./Dockerfile
+#     healthCheckPath: /actuator/health
+#     envVars:
+#       - key: CORE_ENGINE_URL
+#         value: https://platform-uat-engine.onrender.com
+#       - key: CLERK_JWKS_URL
+#         value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
+#       - key: CLERK_ISSUER
+#         value: https://gorgeous-seal-77.clerk.accounts.dev
+#       - key: ALLOWED_ORIGINS
+#         value: https://platform-uat-consumer-ui.onrender.com
+#       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
+#
+#   - type: web
+#     name: platform-uat-ui
+#     runtime: static
+#     repo: https://github.com/lukeadministrator/luke-core-ui
+#     branch: uat
+#     buildCommand: npm ci && npm run build
+#     staticPublishPath: ./dist
+#     pullRequestPreviewsEnabled: false
+#     envVars:
+#       - key: NODE_VERSION
+#         value: 22.12.0
+#       - key: VITE_API_BASE_URL
+#         value: https://platform-uat-engine.onrender.com
+#     routes:
+#       - type: rewrite
+#         source: /*
+#         destination: /index.html
+#     headers:
+#       - path: /assets/*
+#         name: Cache-Control
+#         value: public, max-age=31536000, immutable
+#
+#   # ── platform-uat-consumer-ui (end-user app) ────────────────────────────────
+#   - type: web
+#     name: platform-uat-consumer-ui
+#     runtime: static
+#     repo: https://github.com/lukeadministrator/luke-consumer-ui
+#     branch: uat
+#     buildCommand: npm ci && npm run build
+#     staticPublishPath: ./dist
+#     pullRequestPreviewsEnabled: false
+#     envVars:
+#       - key: NODE_VERSION
+#         value: 22.12.0
+#       - key: VITE_CLERK_PUBLISHABLE_KEY
+#         value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
+#       - key: VITE_API_BASE_URL
+#         value: https://platform-uat-auth.onrender.com
+#     routes:
+#       - type: rewrite
+#         source: /*
+#         destination: /index.html
+#     headers:
+#       - path: /assets/*
+#         name: Cache-Control
+#         value: public, max-age=31536000, immutable
