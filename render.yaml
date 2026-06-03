@@ -9,8 +9,15 @@
 #     isolated in its own schema via DB_SCHEMA (platform_dev/qa/uat) — the engine
 #     sets currentSchema and creates the schema on first connect.
 #   • Each env = an engine (Docker, from luke-core-engine) + a UI (static, from
-#     luke-core-ui). Both are pulled from their own repos via `repo:`.
+#     luke-core-ui) + a consumer auth gateway (Docker, from luke-auth-engine).
+#     All pulled from their own repos via `repo:`.
 #   • Branch per env: develop → dev, qa → qa, uat → uat.
+#
+# Auth tier (luke-auth-engine, the *-auth services)
+#   • Fronts luke-consumer-ui: verifies Clerk JWTs, then proxies to the env's
+#     engine with a signed "act-as-user" token the engine trusts via JWKS.
+#   • core-ui still talks to the engine directly over HTTP Basic (unchanged).
+#   • Set each *-auth CLERK_* to that environment's Clerk instance.
 #
 # Prerequisites (one-time)
 #   1. Connect THIS repo to Render as a Blueprint.
@@ -77,6 +84,36 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://platform-dev-ui.onrender.com
+      # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
+      - key: LUKE_AUTH_GATEWAY_ENABLED
+        value: "true"
+      - key: LUKE_AUTH_GATEWAY_JWKS_URL
+        value: https://platform-dev-auth.onrender.com/.well-known/jwks.json
+
+  # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
+  # Verifies Clerk JWTs from luke-consumer-ui and proxies to the engine with a
+  # signed act-as-user token. Each env should ideally point CLERK_* at its own
+  # Clerk instance; the dev instance is reused here until qa/uat get their own.
+  - type: web
+    name: platform-dev-auth
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-auth-engine
+    branch: develop
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: CORE_ENGINE_URL
+        value: https://platform-dev-engine.onrender.com
+      - key: CLERK_JWKS_URL
+        value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
+      - key: CLERK_ISSUER
+        value: https://gorgeous-seal-77.clerk.accounts.dev
+      - key: ALLOWED_ORIGINS
+        value: https://platform-dev-consumer-ui.onrender.com
+      # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
+      # The engine refetches the JWKS on the new kid after a restart.
 
   - type: web
     name: platform-dev-ui
@@ -91,6 +128,33 @@ services:
         value: 22.12.0
       - key: VITE_API_BASE_URL
         value: https://platform-dev-engine.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # ── platform-dev-consumer-ui (end-user app) ────────────────────────────────
+  # Talks to the auth gateway (NOT the engine directly). VITE_CLERK_PUBLISHABLE_KEY
+  # is public (frontend) and may be committed; point it at this env's Clerk.
+  - type: web
+    name: platform-dev-consumer-ui
+    runtime: static
+    repo: https://github.com/lukeadministrator/luke-consumer-ui
+    branch: develop
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
+      - key: VITE_API_BASE_URL
+        value: https://platform-dev-auth.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -141,6 +205,32 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://platform-qa-ui.onrender.com
+      # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
+      - key: LUKE_AUTH_GATEWAY_ENABLED
+        value: "true"
+      - key: LUKE_AUTH_GATEWAY_JWKS_URL
+        value: https://platform-qa-auth.onrender.com/.well-known/jwks.json
+
+  # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
+  - type: web
+    name: platform-qa-auth
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-auth-engine
+    branch: qa
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: CORE_ENGINE_URL
+        value: https://platform-qa-engine.onrender.com
+      - key: CLERK_JWKS_URL
+        value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
+      - key: CLERK_ISSUER
+        value: https://gorgeous-seal-77.clerk.accounts.dev
+      - key: ALLOWED_ORIGINS
+        value: https://platform-qa-consumer-ui.onrender.com
+      # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
 
   - type: web
     name: platform-qa-ui
@@ -155,6 +245,31 @@ services:
         value: 22.12.0
       - key: VITE_API_BASE_URL
         value: https://platform-qa-engine.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # ── platform-qa-consumer-ui (end-user app) ─────────────────────────────────
+  - type: web
+    name: platform-qa-consumer-ui
+    runtime: static
+    repo: https://github.com/lukeadministrator/luke-consumer-ui
+    branch: qa
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
+      - key: VITE_API_BASE_URL
+        value: https://platform-qa-auth.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -205,6 +320,32 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://platform-uat-ui.onrender.com
+      # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
+      - key: LUKE_AUTH_GATEWAY_ENABLED
+        value: "true"
+      - key: LUKE_AUTH_GATEWAY_JWKS_URL
+        value: https://platform-uat-auth.onrender.com/.well-known/jwks.json
+
+  # ── platform-uat-auth (consumer gateway) ────────────────────────────────────
+  - type: web
+    name: platform-uat-auth
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-auth-engine
+    branch: uat
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: CORE_ENGINE_URL
+        value: https://platform-uat-engine.onrender.com
+      - key: CLERK_JWKS_URL
+        value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
+      - key: CLERK_ISSUER
+        value: https://gorgeous-seal-77.clerk.accounts.dev
+      - key: ALLOWED_ORIGINS
+        value: https://platform-uat-consumer-ui.onrender.com
+      # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
 
   - type: web
     name: platform-uat-ui
@@ -219,6 +360,31 @@ services:
         value: 22.12.0
       - key: VITE_API_BASE_URL
         value: https://platform-uat-engine.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # ── platform-uat-consumer-ui (end-user app) ────────────────────────────────
+  - type: web
+    name: platform-uat-consumer-ui
+    runtime: static
+    repo: https://github.com/lukeadministrator/luke-consumer-ui
+    branch: uat
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
+      - key: VITE_API_BASE_URL
+        value: https://platform-uat-auth.onrender.com
     routes:
       - type: rewrite
         source: /*
