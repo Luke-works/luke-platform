@@ -89,6 +89,9 @@ services:
         value: "true"
       - key: LUKE_AUTH_GATEWAY_JWKS_URL
         value: https://platform-dev-auth.onrender.com/.well-known/jwks.json
+      # Reach the capability engine (Forms, etc.) via the CapabilitiesProxyController.
+      - key: CAPABILITIES_BASE_URL
+        value: https://platform-dev-capability.onrender.com
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
   # Verifies Clerk JWTs from luke-consumer-ui and proxies to the engine with a
@@ -164,6 +167,48 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
 
+  # ── platform-dev-capability (capabilities + Forms) ──────────────────────────
+  # Shares luke-nonprod-db in its OWN schema (capability_dev), separate from the
+  # engine's camunda schema. Verifies the gateway act-as token via the auth JWKS.
+  - type: web
+    name: platform-dev-capability
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-capability-engine
+    branch: develop
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: DB_SCHEMA
+        value: capability_dev
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: luke-nonprod-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: luke-nonprod-db
+          property: port
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: luke-nonprod-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: luke-nonprod-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: luke-nonprod-db
+          property: password
+      - key: LUKE_AUTH_GATEWAY_JWKS_URL
+        value: https://platform-dev-auth.onrender.com/.well-known/jwks.json
+      - key: ALLOWED_ORIGINS
+        value: https://platform-dev-consumer-ui.onrender.com
+
   # ── platform-qa ───────────────────────────────────────────────────────────
   - type: web
     name: platform-qa-engine
@@ -210,6 +255,9 @@ services:
         value: "true"
       - key: LUKE_AUTH_GATEWAY_JWKS_URL
         value: https://platform-qa-auth.onrender.com/.well-known/jwks.json
+      # Reach the capability engine (Forms, etc.) via the CapabilitiesProxyController.
+      - key: CAPABILITIES_BASE_URL
+        value: https://platform-qa-capability.onrender.com
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
   - type: web
@@ -278,6 +326,46 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+
+  # ── platform-qa-capability (capabilities + Forms) ───────────────────────────
+  - type: web
+    name: platform-qa-capability
+    runtime: docker
+    repo: https://github.com/lukeadministrator/luke-capability-engine
+    branch: qa
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: DB_SCHEMA
+        value: capability_qa
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: luke-nonprod-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: luke-nonprod-db
+          property: port
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: luke-nonprod-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: luke-nonprod-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: luke-nonprod-db
+          property: password
+      - key: LUKE_AUTH_GATEWAY_JWKS_URL
+        value: https://platform-qa-auth.onrender.com/.well-known/jwks.json
+      - key: ALLOWED_ORIGINS
+        value: https://platform-qa-consumer-ui.onrender.com
 
   # ── platform-uat (DISABLED — uncomment this block to enable the uat env) ──
 #   - type: web

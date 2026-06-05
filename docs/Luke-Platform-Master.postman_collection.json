@@ -1,0 +1,2354 @@
+{
+  "info": {
+    "name": "Luke Platform \u2014 Master",
+    "description": "Everything built in luke-0531: auth-engine (gateway+translator), core-engine (CIBSeven identity/roles/topics/process), capability-engine (capabilities + per-user access + Forms).\n\nRUN ORDER: run top-to-bottom. Folder 0 sets up identity + FORMS access; folder 1 'Dev token' captures a gateway act-as token into {{token}} (reused by all later Bearer calls \u2014 one token covers a full run). If a single request 401s after ~60s, re-run folder 1 'Dev token'.\n\nASSUMES the local dev stack:\n  \u2022 auth-engine :8083  LUKE_AUTH_DEV_MODE=true, LUKE_AUTH_SERVICE_KEYS=s3cret-orderbot=svc:order-bot\n  \u2022 core-engine :8080  LUKE_AUTH_GATEWAY_ENABLED=true + JWKS=http://localhost:8083/.well-known/jwks.json\n  \u2022 capability  :8082  LUKE_AUTH_GATEWAY_JWKS_URL=http://localhost:8083/.well-known/jwks.json\nAuth per folder: Basic admin (core /api + engine-rest admin), gateway Bearer (forms/capability/user views), X-Dev-User (/session), X-Service-Key (/service/token).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 \u00b7 Health & Setup",
+      "item": [
+        {
+          "name": "Health \u2014 auth-engine",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{authBase}}/actuator/health",
+              "host": [
+                "{{authBase}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health \u2014 core-engine",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{coreBase}}/actuator/health",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health \u2014 capability-engine",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{capBase}}/actuator/health",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create tenant (idempotent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/tenant/create",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "tenant",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"{{tenantId}}\", \"name\": \"Acme Test\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204/500\", () => [204,500].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Onboard user (task-worker, RW)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/api/admin/onboard-user",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "onboard-user"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"{{userId}}\", \"firstName\": \"Test\", \"lastName\": \"User\", \"email\": \"t@x.com\", \"password\": \"unused\", \"tenantId\": \"{{tenantId}}\", \"role\": \"task-worker\", \"accessLevel\": \"READ_WRITE\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200/201\", () => [200,201].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create candidate group (ABAC)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/group/create",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "group",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"sales\", \"name\": \"Sales\", \"type\": \"ORGANIZATIONAL\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204/500\", () => [204,500].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add user to candidate group",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/group/sales/members/{{userId}}",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "group",
+                "sales",
+                "members",
+                "{{userId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204/500\", () => [204,500].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Subscribe tenant \u2192 FORMS",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{capBase}}/api/tenants/{{tenantId}}/capabilities/FORMS",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "tenants",
+                "{{tenantId}}",
+                "capabilities",
+                "FORMS"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grant user FORMS read-write",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/tenants/{{tenantId}}/users/{{userId}}/capabilities/FORMS",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "tenants",
+                "{{tenantId}}",
+                "users",
+                "{{userId}}",
+                "capabilities",
+                "FORMS"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"level\": \"read-write\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Run first. Brings up identity (tenant+user+role+candidate group) and FORMS access so the rest works. Idempotent. Assumes the local dev stack: auth-engine dev-mode + service key, core gateway enabled, capability verifier enabled."
+    },
+    {
+      "name": "1 \u00b7 Auth Engine (luke-auth-engine :8083)",
+      "item": [
+        {
+          "name": "JWKS (public signing keys)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{authBase}}/.well-known/jwks.json",
+              "host": [
+                "{{authBase}}"
+              ],
+              "path": [
+                ".well-known",
+                "jwks.json"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session \u2014 the translator (dev user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Dev-User",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{authBase}}/session",
+              "host": [
+                "{{authBase}}"
+              ],
+              "path": [
+                "session"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "pm.test(\"has can[]\",()=>Array.isArray(j.can));",
+                  "pm.test(\"roles+capabilities merged\",()=>!!j.roles && !!j.capabilities);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dev token (mint act-as, dev-mode)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{authBase}}/dev/token?user={{userId}}",
+              "host": [
+                "{{authBase}}"
+              ],
+              "path": [
+                "dev",
+                "token"
+              ],
+              "query": [
+                {
+                  "key": "user",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Service token (robot, X-Service-Key)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Key",
+                "value": "{{serviceKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{authBase}}/service/token",
+              "host": [
+                "{{authBase}}"
+              ],
+              "path": [
+                "service",
+                "token"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set(\"serviceToken\", j.token);",
+                  "pm.test(\"subject is service acct\",()=>/^svc:/.test(j.subject));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Clerk-verifying gateway + translator. /session merges core roles + capability access into can[]. /dev/token and /service/token mint act-as tokens (dev / robot ingress)."
+    },
+    {
+      "name": "2 \u00b7 Core Engine \u2014 Identity & Admin (:8080)",
+      "item": [
+        {
+          "name": "Me (Basic admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/api/me",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My permissions (admin, Basic)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/api/me/permissions",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "me",
+                "permissions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "pm.test(\"operator\",()=>pm.response.json().operator===true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My permissions (user, gateway Bearer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/api/me/permissions",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "me",
+                "permissions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "pm.test(\"rolled-up 3 roles\",()=>j.roles.tenantUser!==undefined && j.roles.taskUser!==undefined);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Onboard Clerk user (example)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/api/admin/onboard-clerk-user",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "onboard-clerk-user"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"clerkSub\": \"user_demo123\", \"firstName\": \"Clerk\", \"lastName\": \"Demo\", \"email\": \"c@x.com\", \"tenantId\": \"{{tenantId}}\", \"role\": \"tenant-user\", \"accessLevel\": \"READ_ONLY\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200/201\", () => [200,201].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Custom /api identity + onboarding. /api/me/permissions rolls the 5 engine roles into 3 (tenantUser/processUser/taskUser) and is what auth-engine reads."
+    },
+    {
+      "name": "3 \u00b7 Core Engine \u2014 Topic Registry",
+      "item": [
+        {
+          "name": "List topics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{coreBase}}/api/topics",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "topics"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create topic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/api/topics",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "topics"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"topicName\": \"order-validation\", \"description\": \"Validate orders\", \"workerType\": \"JAVA\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201/409\", () => [201,409].includes(pm.response.code));",
+                  "try{pm.collectionVariables.set(\"topicId\",pm.response.json().id);}catch(e){}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate topics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{coreBase}}/api/topics/validate",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "topics",
+                "validate"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete topic",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{coreBase}}/api/topics/{{topicId}}",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "api",
+                "topics",
+                "{{topicId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200/204/404\", () => [200,204,404].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "External-task topic registry (worker metadata). Listed here for completeness."
+    },
+    {
+      "name": "4 \u00b7 Core Engine \u2014 Process API (engine-rest)",
+      "item": [
+        {
+          "name": "Process definitions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/process-definition",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "process-definition"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/task",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "task"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deployments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/deployment",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "deployment"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tenants (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{adminBasic}}"
+              }
+            ],
+            "url": {
+              "raw": "{{coreBase}}/engine-rest/tenant",
+              "host": [
+                "{{coreBase}}"
+              ],
+              "path": [
+                "engine-rest",
+                "tenant"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Representative CIBSeven REST reads, authenticated by the gateway Bearer (user) or Basic (admin). The full engine-rest surface is available the same way."
+    },
+    {
+      "name": "5 \u00b7 Capability Engine \u2014 Catalog & Subscriptions (:8082)",
+      "item": [
+        {
+          "name": "List capabilities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{capBase}}/api/capabilities",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "capabilities"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get FORMS capability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{capBase}}/api/capabilities/FORMS",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "capabilities",
+                "FORMS"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/my-subscriptions",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "my-subscriptions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tenant's subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{capBase}}/api/tenants/{{tenantId}}/capabilities",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "tenants",
+                "{{tenantId}}",
+                "capabilities"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Global capability catalog + per-tenant subscriptions (the on/off switch)."
+    },
+    {
+      "name": "6 \u00b7 Capability Engine \u2014 Access Grants",
+      "item": [
+        {
+          "name": "Grant user FORMS read-write",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/tenants/{{tenantId}}/users/{{userId}}/capabilities/FORMS",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "tenants",
+                "{{tenantId}}",
+                "users",
+                "{{userId}}",
+                "capabilities",
+                "FORMS"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"level\": \"read-write\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My capabilities (gateway Bearer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/my-capabilities",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "my-capabilities"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "pm.test(\"FORMS read-write\",()=>pm.response.json().FORMS===\"read-write\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User's grants (admin view)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{capBase}}/api/tenants/{{tenantId}}/users/{{userId}}/capabilities",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "tenants",
+                "{{tenantId}}",
+                "users",
+                "{{userId}}",
+                "capabilities"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Per-user capability level. /api/my-capabilities is verified by the gateway token (X-User-Id is ignored)."
+    },
+    {
+      "name": "7 \u00b7 Forms \u2014 Definitions & Versioning",
+      "item": [
+        {
+          "name": "Create form",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Contact request\", \"description\": \"Public\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => [201].includes(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set(\"formId\",j.id);pm.collectionVariables.set(\"formCode\",j.code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read by code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/by-code/{{formCode}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "by-code",
+                "{{formCode}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List forms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patch meta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Contact Us\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save draft",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/draft",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "draft"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"schema\": \"{\\\"entities\\\":{\\\"e1\\\":{\\\"type\\\":\\\"textField\\\",\\\"attributes\\\":{\\\"key\\\":\\\"firstName\\\",\\\"label\\\":\\\"First name\\\",\\\"required\\\":true}},\\\"e2\\\":{\\\"type\\\":\\\"textField\\\",\\\"attributes\\\":{\\\"key\\\":\\\"email\\\",\\\"label\\\":\\\"Email\\\",\\\"required\\\":true}},\\\"e3\\\":{\\\"type\\\":\\\"number\\\",\\\"attributes\\\":{\\\"key\\\":\\\"amount\\\",\\\"label\\\":\\\"Amount\\\",\\\"required\\\":false}}},\\\"root\\\":[\\\"e1\\\",\\\"e2\\\",\\\"e3\\\"]}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check in v1 (auto-publish)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/versions",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "versions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => [201].includes(pm.response.code));",
+                  "pm.collectionVariables.set(\"version\",pm.response.json().version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List versions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/versions",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "versions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish v1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/versions/{{version}}/publish",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "versions",
+                "{{version}}",
+                "publish"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolve schema (published)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/by-code/{{formCode}}/schema?pin=published",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "by-code",
+                "{{formCode}}",
+                "schema"
+              ],
+              "query": [
+                {
+                  "key": "pin",
+                  "value": "published"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Field \u2192 variable contract",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/by-code/{{formCode}}/fields?pin=published",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "by-code",
+                "{{formCode}}",
+                "fields"
+              ],
+              "query": [
+                {
+                  "key": "pin",
+                  "value": "published"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Form templates: CRUD + versioning (check-in compiles, publish promotes) + resolve for the renderer/engine. Gated by FORMS read/read-write via the verified token."
+    },
+    {
+      "name": "8 \u00b7 Forms \u2014 Instances (runtime)",
+      "item": [
+        {
+          "name": "Create instance (prefilled)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"definitionCode\": \"{{formCode}}\", \"prefill\": {\"firstName\": \"Ada\", \"email\": \"ada@x.com\"}, \"recipient\": {\"email\": \"ada@x.com\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => [201].includes(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set(\"instanceId\",j.instance.id);pm.collectionVariables.set(\"instanceToken\",j.instance.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read instance (+ schema)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances/{{instanceId}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances",
+                "{{instanceId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read by token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances/by-token/{{instanceToken}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances",
+                "by-token",
+                "{{instanceToken}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send (CREATED\u2192SENT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances/{{instanceId}}/send",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances",
+                "{{instanceId}}",
+                "send"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Partial save (\u2192IN_PROGRESS)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances/{{instanceId}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances",
+                "{{instanceId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\": {\"firstName\": \"Ada\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances/{{instanceId}}/submit",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances",
+                "{{instanceId}}",
+                "submit"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\": {\"email\": \"ada@x.com\", \"amount\": 42}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));",
+                  "pm.test(\"SUBMITTED\",()=>pm.response.json().instance.state===\"SUBMITTED\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Processed (\u2192PROCESSED)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances/{{instanceId}}/processed",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances",
+                "{{instanceId}}",
+                "processed"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List by form",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-instances?definitionCode={{formCode}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-instances"
+              ],
+              "query": [
+                {
+                  "key": "definitionCode",
+                  "value": "{{formCode}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "A concrete runtime occurrence: create (pins published version) \u2192 send \u2192 save \u2192 submit \u2192 processed, with the lifecycle state machine."
+    },
+    {
+      "name": "9 \u00b7 Forms \u2014 Retire & Trash",
+      "item": [
+        {
+          "name": "Retire",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/retire",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "retire"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unretire",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/unretire",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "unretire"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Soft delete (\u2192trash)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204\", () => [204].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List trash",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions?deleted=true",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions"
+              ],
+              "query": [
+                {
+                  "key": "deleted",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Restore",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/restore",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "restore"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => [200].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Purge (hard delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{capBase}}/api/form-definitions/{{formId}}/purge",
+              "host": [
+                "{{capBase}}"
+              ],
+              "path": [
+                "api",
+                "form-definitions",
+                "{{formId}}",
+                "purge"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204\", () => [204].includes(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Lifecycle end: retire keeps it resolvable; delete trashes; purge removes. Purge last \u2014 cleans up the test form."
+    }
+  ],
+  "variable": [
+    {
+      "key": "authBase",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "coreBase",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "capBase",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "adminBasic",
+      "value": "YWRtaW46YWRtaW4="
+    },
+    {
+      "key": "tenantId",
+      "value": "t-test"
+    },
+    {
+      "key": "userId",
+      "value": "u-task"
+    },
+    {
+      "key": "serviceKey",
+      "value": "s3cret-orderbot"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "serviceToken",
+      "value": ""
+    },
+    {
+      "key": "topicId",
+      "value": ""
+    },
+    {
+      "key": "formId",
+      "value": ""
+    },
+    {
+      "key": "formCode",
+      "value": ""
+    },
+    {
+      "key": "version",
+      "value": ""
+    },
+    {
+      "key": "instanceId",
+      "value": ""
+    },
+    {
+      "key": "instanceToken",
+      "value": ""
+    }
+  ]
+}
