@@ -83,7 +83,7 @@ services:
       - key: CAMUNDA_ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://platform-dev-ui.onrender.com
+        value: https://platform-dev-ui.onrender.com,https://*.lukeflow.com
       # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
       - key: LUKE_AUTH_GATEWAY_ENABLED
         value: "true"
@@ -249,7 +249,7 @@ services:
       - key: CAMUNDA_ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://platform-qa-ui.onrender.com
+        value: https://platform-qa-ui.onrender.com,https://*.lukeflow.com
       # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
       - key: LUKE_AUTH_GATEWAY_ENABLED
         value: "true"
