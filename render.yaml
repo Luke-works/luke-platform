@@ -14,10 +14,11 @@
 #   • Branch per env: develop → dev, qa → qa, uat → uat.
 #
 # Auth tier (luke-auth-engine, the *-auth services)
-#   • Fronts luke-consumer-ui: verifies Clerk JWTs, then proxies to the env's
-#     engine with a signed "act-as-user" token the engine trusts via JWKS.
+#   • Fronts luke-consumer-ui: runs the WorkOS login flows (/auth/*) and verifies
+#     the issued WorkOS access tokens, then proxies to the env's engine with a
+#     signed "act-as-user" token the engine trusts via JWKS.
 #   • core-ui still talks to the engine directly over HTTP Basic (unchanged).
-#   • Set each *-auth CLERK_* to that environment's Clerk instance.
+#   • Set each *-auth WORKOS_CLIENT_ID + WORKOS_API_KEY in the dashboard (sync:false).
 #
 # Prerequisites (one-time)
 #   1. Connect THIS repo to Render as a Blueprint.
@@ -94,9 +95,10 @@ services:
         value: https://platform-dev-capability.onrender.com
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
-  # Verifies Clerk JWTs from luke-consumer-ui and proxies to the engine with a
-  # signed act-as-user token. Each env should ideally point CLERK_* at its own
-  # Clerk instance; the dev instance is reused here until qa/uat get their own.
+  # Runs the WorkOS login flows (/auth/*) for luke-consumer-ui, verifies the
+  # issued WorkOS access tokens, and proxies to the engine with a signed
+  # act-as-user token. WORKOS_CLIENT_ID/API_KEY are sync:false — set them per
+  # service in the dashboard (same WorkOS project reused across envs for now).
   - type: web
     name: platform-dev-auth
     runtime: docker
@@ -109,10 +111,20 @@ services:
     envVars:
       - key: CORE_ENGINE_URL
         value: https://platform-dev-engine.onrender.com
-      - key: CLERK_JWKS_URL
-        value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
-      - key: CLERK_ISSUER
-        value: https://gorgeous-seal-77.clerk.accounts.dev
+      - key: CAPABILITIES_BASE_URL
+        value: https://platform-dev-capability.onrender.com
+      - key: WORKOS_CLIENT_ID
+        sync: false
+      - key: WORKOS_API_KEY
+        sync: false
+      - key: WORKOS_REDIRECT_URI
+        value: https://platform-dev-auth.onrender.com/auth/callback
+      - key: WORKOS_UI_CALLBACK_URL
+        value: https://platform-dev-consumer-ui.onrender.com/sso-callback
+      - key: WORKOS_COOKIE_SECURE
+        value: "true"
+      - key: WORKOS_COOKIE_SAMESITE
+        value: None
       - key: ALLOWED_ORIGINS
         value: https://platform-dev-consumer-ui.onrender.com,https://*.lukeflow.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
@@ -260,6 +272,8 @@ services:
         value: https://platform-qa-capability.onrender.com
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
+  # Runs the WorkOS login flows; WORKOS_CLIENT_ID/API_KEY are sync:false (set in
+  # the dashboard). Same WorkOS project reused across envs for now.
   - type: web
     name: platform-qa-auth
     runtime: docker
@@ -272,10 +286,20 @@ services:
     envVars:
       - key: CORE_ENGINE_URL
         value: https://platform-qa-engine.onrender.com
-      - key: CLERK_JWKS_URL
-        value: https://gorgeous-seal-77.clerk.accounts.dev/.well-known/jwks.json
-      - key: CLERK_ISSUER
-        value: https://gorgeous-seal-77.clerk.accounts.dev
+      - key: CAPABILITIES_BASE_URL
+        value: https://platform-qa-capability.onrender.com
+      - key: WORKOS_CLIENT_ID
+        sync: false
+      - key: WORKOS_API_KEY
+        sync: false
+      - key: WORKOS_REDIRECT_URI
+        value: https://platform-qa-auth.onrender.com/auth/callback
+      - key: WORKOS_UI_CALLBACK_URL
+        value: https://platform-qa-consumer-ui.onrender.com/sso-callback
+      - key: WORKOS_COOKIE_SECURE
+        value: "true"
+      - key: WORKOS_COOKIE_SAMESITE
+        value: None
       - key: ALLOWED_ORIGINS
         value: https://platform-qa-consumer-ui.onrender.com,https://*.lukeflow.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
