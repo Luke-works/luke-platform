@@ -118,15 +118,16 @@ services:
       - key: WORKOS_API_KEY
         sync: false
       - key: WORKOS_REDIRECT_URI
-        value: https://platform-dev-auth.onrender.com/auth/callback
+        value: https://authdev.lukeflow.com/auth/callback
       - key: WORKOS_UI_CALLBACK_URL
-        value: https://platform-dev-consumer-ui.onrender.com/sso-callback
+        value: https://consdev.lukeflow.com/sso-callback
       - key: WORKOS_COOKIE_SECURE
         value: "true"
+      # auth + UI share lukeflow.com (same-site) → Lax is enough; cross-site would need None.
       - key: WORKOS_COOKIE_SAMESITE
-        value: None
+        value: Lax
       - key: ALLOWED_ORIGINS
-        value: https://platform-dev-consumer-ui.onrender.com,https://*.lukeflow.com
+        value: https://consdev.lukeflow.com,https://*.lukeflow.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
       # The engine refetches the JWKS on the new kid after a restart.
 
@@ -293,15 +294,16 @@ services:
       - key: WORKOS_API_KEY
         sync: false
       - key: WORKOS_REDIRECT_URI
-        value: https://platform-qa-auth.onrender.com/auth/callback
+        value: https://authqa.lukeflow.com/auth/callback
       - key: WORKOS_UI_CALLBACK_URL
-        value: https://platform-qa-consumer-ui.onrender.com/sso-callback
+        value: https://consqa.lukeflow.com/sso-callback
       - key: WORKOS_COOKIE_SECURE
         value: "true"
+      # auth + UI share lukeflow.com (same-site) → Lax is enough; cross-site would need None.
       - key: WORKOS_COOKIE_SAMESITE
-        value: None
+        value: Lax
       - key: ALLOWED_ORIGINS
-        value: https://platform-qa-consumer-ui.onrender.com,https://*.lukeflow.com
+        value: https://consqa.lukeflow.com,https://*.lukeflow.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
 
   - type: web
