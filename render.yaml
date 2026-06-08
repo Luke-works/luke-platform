@@ -154,8 +154,8 @@ services:
         value: public, max-age=31536000, immutable
 
   # ── platform-dev-consumer-ui (end-user app) ────────────────────────────────
-  # Talks to the auth gateway (NOT the engine directly). VITE_CLERK_PUBLISHABLE_KEY
-  # is public (frontend) and may be committed; point it at this env's Clerk.
+  # Headless WorkOS: the SPA talks only to the auth gateway (/auth/*) — no auth
+  # SDK, no provider keys in the browser. VITE_AUTH_API_URL is the gateway base.
   - type: web
     name: platform-dev-consumer-ui
     runtime: static
@@ -167,10 +167,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.12.0
-      - key: VITE_CLERK_PUBLISHABLE_KEY
-        value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
-      - key: VITE_API_BASE_URL
-        value: https://platform-dev-auth.onrender.com
+      - key: VITE_AUTH_API_URL
+        value: https://authdev.lukeflow.com
     routes:
       - type: rewrite
         source: /*
@@ -340,10 +338,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.12.0
-      - key: VITE_CLERK_PUBLISHABLE_KEY
-        value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
-      - key: VITE_API_BASE_URL
-        value: https://platform-qa-auth.onrender.com
+      - key: VITE_AUTH_API_URL
+        value: https://authqa.lukeflow.com
     routes:
       - type: rewrite
         source: /*
