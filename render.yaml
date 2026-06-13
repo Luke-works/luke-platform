@@ -43,6 +43,21 @@ databases:
     region: ohio
     postgresMajorVersion: "16"
 
+# ── Shared internal secret (Forms → Camunda intake) ──────────────────────────
+# The cap→core /api/internal/process-start call is authenticated with a shared
+# secret. A group with generateValue makes ONE value per env that BOTH the engine
+# and the capability service reference, so they always match. (Switch
+# generateValue → sync:false if you'd rather set it manually.)
+envVarGroups:
+  - name: platform-dev-internal
+    envVars:
+      - key: LUKE_INTERNAL_SHARED_SECRET
+        generateValue: true
+  - name: platform-qa-internal
+    envVars:
+      - key: LUKE_INTERNAL_SHARED_SECRET
+        generateValue: true
+
 services:
   # ── platform-dev ──────────────────────────────────────────────────────────
   - type: web
@@ -93,6 +108,8 @@ services:
       # Reach the capability engine (Forms, etc.) via the CapabilitiesProxyController.
       - key: CAPABILITIES_BASE_URL
         value: https://platform-dev-capability.onrender.com
+      # Forms → Camunda intake: validate the cap→core /api/internal/process-start call.
+      - fromGroup: platform-dev-internal
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
   # Runs the WorkOS login flows (/auth/*) for luke-consumer-ui, verifies the
@@ -219,6 +236,13 @@ services:
         value: https://platform-dev-auth.onrender.com/.well-known/jwks.json
       - key: ALLOWED_ORIGINS
         value: https://platform-dev-consumer-ui.onrender.com
+      # Forms → Camunda intake (embed/webhook submit → process start).
+      - fromGroup: platform-dev-internal
+      - key: CORE_ENGINE_BASE_URL
+        value: https://platform-dev-engine.onrender.com
+      # Signs/verifies public embed tokens (set a real value; this generates one).
+      - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
 
   # ── platform-qa ───────────────────────────────────────────────────────────
   - type: web
@@ -269,6 +293,8 @@ services:
       # Reach the capability engine (Forms, etc.) via the CapabilitiesProxyController.
       - key: CAPABILITIES_BASE_URL
         value: https://platform-qa-capability.onrender.com
+      # Forms → Camunda intake: validate the cap→core /api/internal/process-start call.
+      - fromGroup: platform-qa-internal
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
   # Runs the WorkOS login flows; WORKOS_CLIENT_ID/API_KEY are sync:false (set in
@@ -388,6 +414,13 @@ services:
         value: https://platform-qa-auth.onrender.com/.well-known/jwks.json
       - key: ALLOWED_ORIGINS
         value: https://platform-qa-consumer-ui.onrender.com
+      # Forms → Camunda intake (embed/webhook submit → process start).
+      - fromGroup: platform-qa-internal
+      - key: CORE_ENGINE_BASE_URL
+        value: https://platform-qa-engine.onrender.com
+      # Signs/verifies public embed tokens (set a real value; this generates one).
+      - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
 
   # ── platform-uat (DISABLED — uncomment this block to enable the uat env) ──
 #   - type: web
