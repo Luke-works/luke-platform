@@ -11,6 +11,11 @@
 #   • Each env = an engine (Docker, from luke-core-engine) + a UI (static, from
 #     luke-core-ui) + a consumer auth gateway (Docker, from luke-auth-engine).
 #     All pulled from their own repos via `repo:`.
+#   • Each env also runs an AI agents service (<env>-agents, Python, from
+#     luke-agents): the LukeTalks form builder + agent fleet under /agents/<slug>
+#     (form agent also at root /chat). It retains every chat turn in its OWN
+#     schema (luke_agents_<env>) so the data can be exported to fine-tune the
+#     model — separate from the engine/capability schemas.
 #   • Branch per env: develop → dev, qa → qa, uat → uat.
 #
 # Auth tier (luke-auth-engine, the *-auth services)
@@ -22,9 +27,11 @@
 #
 # Prerequisites (one-time)
 #   1. Connect THIS repo to Render as a Blueprint.
-#   2. Grant Render access to lukeadministrator/luke-core-engine and
-#      lukeadministrator/luke-core-ui (so the per-service `repo:` works).
-#   3. Create the branches `develop`, `qa`, `uat` in BOTH code repos.
+#   2. Grant Render access to every referenced repo under lukeadministrator
+#      (luke-core-engine, luke-core-ui, luke-auth-engine, luke-capability-engine,
+#      luke-consumer-ui, luke-agents) so the per-service `repo:` works.
+#   3. Create the branches `develop`, `qa`, `uat` in every referenced code repo
+#      (including luke-agents).
 #
 # Notes
 #   • VITE_API_BASE_URL is baked into the UI at build time and must be the env's
@@ -186,6 +193,9 @@ services:
         value: 22.12.0
       - key: VITE_AUTH_API_URL
         value: https://authdev.lukeflow.com
+      # LukeTalks form-builder agent (root /chat alias on the agents service).
+      - key: VITE_FORM_AGENT_URL
+        value: https://platform-dev-agents.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -243,6 +253,51 @@ services:
       # Signs/verifies public embed tokens (set a real value; this generates one).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+
+  # ── platform-dev-agents (LukeTalks AI agents) ───────────────────────────────
+  # FastAPI app hosting the agent fleet under /agents/<slug>; the form agent is
+  # also at root /chat (drop-in for the consumer-ui Form Builder's
+  # VITE_FORM_AGENT_URL). Shares luke-nonprod-db in its OWN schema (luke_agents_dev)
+  # to retain chat turns for fine-tuning, separate from the camunda/capability schemas.
+  - type: web
+    name: platform-dev-agents
+    runtime: python
+    repo: https://github.com/lukeadministrator/luke-agents
+    branch: develop
+    plan: starter
+    region: ohio
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Pin Python to a version with prebuilt wheels (3.14 has no pydantic-core wheel).
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      # Groq key — set per service in the dashboard (sync:false keeps it out of git).
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_FALLBACK_MODEL
+        value: llama-3.3-70b-versatile
+      # Per-user cap: 200 actions / 3h to bound AI spend.
+      - key: RATE_LIMIT_MAX
+        value: "200"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "10800"
+      # Transcript store -> shared db, this env's own schema. The app creates the
+      # schema + tables on first connect (idempotent).
+      - key: DATABASE_URL
+        fromDatabase:
+          name: luke-nonprod-db
+          property: connectionString
+      - key: AGENTS_DB_SCHEMA
+        value: luke_agents_dev
+      - key: TRANSCRIPTS_ENABLED
+        value: "true"
+      # Lock browser CORS to the consumer-ui Form Builder origin(s).
+      - key: AGENTS_CORS
+        value: https://platform-dev-consumer-ui.onrender.com,https://*.lukeflow.com
 
   # ── platform-qa ───────────────────────────────────────────────────────────
   - type: web
@@ -366,6 +421,9 @@ services:
         value: 22.12.0
       - key: VITE_AUTH_API_URL
         value: https://authqa.lukeflow.com
+      # LukeTalks form-builder agent (root /chat alias on the agents service).
+      - key: VITE_FORM_AGENT_URL
+        value: https://platform-qa-agents.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -421,6 +479,41 @@ services:
       # Signs/verifies public embed tokens (set a real value; this generates one).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+
+  # ── platform-qa-agents (LukeTalks AI agents) ────────────────────────────────
+  - type: web
+    name: platform-qa-agents
+    runtime: python
+    repo: https://github.com/lukeadministrator/luke-agents
+    branch: qa
+    plan: starter
+    region: ohio
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_FALLBACK_MODEL
+        value: llama-3.3-70b-versatile
+      - key: RATE_LIMIT_MAX
+        value: "200"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "10800"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: luke-nonprod-db
+          property: connectionString
+      - key: AGENTS_DB_SCHEMA
+        value: luke_agents_qa
+      - key: TRANSCRIPTS_ENABLED
+        value: "true"
+      - key: AGENTS_CORS
+        value: https://platform-qa-consumer-ui.onrender.com,https://*.lukeflow.com
 
   # ── platform-uat (DISABLED — uncomment this block to enable the uat env) ──
 #   - type: web
@@ -528,6 +621,8 @@ services:
 #         value: pk_test_Z29yZ2VvdXMtc2VhbC03Ny5jbGVyay5hY2NvdW50cy5kZXYk
 #       - key: VITE_API_BASE_URL
 #         value: https://platform-uat-auth.onrender.com
+#       - key: VITE_FORM_AGENT_URL
+#         value: https://platform-uat-agents.onrender.com
 #     routes:
 #       - type: rewrite
 #         source: /*
@@ -536,3 +631,38 @@ services:
 #       - path: /assets/*
 #         name: Cache-Control
 #         value: public, max-age=31536000, immutable
+#
+#   # ── platform-uat-agents (LukeTalks AI agents) ───────────────────────────────
+#   - type: web
+#     name: platform-uat-agents
+#     runtime: python
+#     repo: https://github.com/lukeadministrator/luke-agents
+#     branch: uat
+#     plan: starter
+#     region: ohio
+#     buildCommand: pip install -r requirements.txt
+#     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+#     healthCheckPath: /health
+#     envVars:
+#       - key: PYTHON_VERSION
+#         value: "3.12.8"
+#       - key: GROQ_API_KEY
+#         sync: false
+#       - key: GROQ_MODEL
+#         value: openai/gpt-oss-120b
+#       - key: GROQ_FALLBACK_MODEL
+#         value: llama-3.3-70b-versatile
+#       - key: RATE_LIMIT_MAX
+#         value: "200"
+#       - key: RATE_LIMIT_WINDOW_SECONDS
+#         value: "10800"
+#       - key: DATABASE_URL
+#         fromDatabase:
+#           name: luke-nonprod-db
+#           property: connectionString
+#       - key: AGENTS_DB_SCHEMA
+#         value: luke_agents_uat
+#       - key: TRANSCRIPTS_ENABLED
+#         value: "true"
+#       - key: AGENTS_CORS
+#         value: https://platform-uat-consumer-ui.onrender.com
