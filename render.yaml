@@ -27,9 +27,11 @@
 #
 # Prerequisites (one-time)
 #   1. Connect THIS repo to Render as a Blueprint.
-#   2. Grant Render access to every referenced repo under lukeadministrator
-#      (luke-core-engine, luke-core-ui, luke-auth-engine, luke-capability-engine,
-#      luke-consumer-ui, luke-agents) so the per-service `repo:` works.
+#   2. Install the Render GitHub App on the **Luke-works** org and grant access to
+#      every referenced repo (luke-core-engine, luke-core-ui, luke-auth-engine,
+#      luke-capability-engine, luke-consumer-ui, luke-agents) so the per-service
+#      `repo:` works. (Required after the 2026-06 move from the lukeadministrator
+#      personal account into the Luke-works org.)
 #   3. Create the branches `develop`, `qa`, `uat` in every referenced code repo
 #      (including luke-agents).
 #
@@ -70,7 +72,7 @@ services:
   - type: web
     name: platform-dev-engine
     runtime: docker
-    repo: https://github.com/lukeadministrator/luke-core-engine
+    repo: https://github.com/Luke-works/luke-core-engine
     branch: develop
     plan: starter
     region: ohio
@@ -126,7 +128,7 @@ services:
   - type: web
     name: platform-dev-auth
     runtime: docker
-    repo: https://github.com/lukeadministrator/luke-auth-engine
+    repo: https://github.com/Luke-works/luke-auth-engine
     branch: develop
     plan: starter
     region: ohio
@@ -158,7 +160,7 @@ services:
   - type: web
     name: platform-dev-ui
     runtime: static
-    repo: https://github.com/lukeadministrator/luke-core-ui
+    repo: https://github.com/Luke-works/luke-core-ui
     branch: develop
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
@@ -183,7 +185,7 @@ services:
   - type: web
     name: platform-dev-consumer-ui
     runtime: static
-    repo: https://github.com/lukeadministrator/luke-consumer-ui
+    repo: https://github.com/Luke-works/luke-consumer-ui
     branch: develop
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
@@ -211,7 +213,7 @@ services:
   - type: web
     name: platform-dev-capability
     runtime: docker
-    repo: https://github.com/lukeadministrator/luke-capability-engine
+    repo: https://github.com/Luke-works/luke-capability-engine
     branch: develop
     plan: starter
     region: ohio
@@ -262,7 +264,7 @@ services:
   - type: web
     name: platform-dev-agents
     runtime: python
-    repo: https://github.com/lukeadministrator/luke-agents
+    repo: https://github.com/Luke-works/luke-agents
     branch: develop
     plan: starter
     region: ohio
@@ -303,7 +305,7 @@ services:
   - type: web
     name: platform-qa-engine
     runtime: docker
-    repo: https://github.com/lukeadministrator/luke-core-engine
+    repo: https://github.com/Luke-works/luke-core-engine
     branch: qa
     plan: starter
     region: ohio
@@ -357,7 +359,7 @@ services:
   - type: web
     name: platform-qa-auth
     runtime: docker
-    repo: https://github.com/lukeadministrator/luke-auth-engine
+    repo: https://github.com/Luke-works/luke-auth-engine
     branch: qa
     plan: starter
     region: ohio
@@ -388,7 +390,7 @@ services:
   - type: web
     name: platform-qa-ui
     runtime: static
-    repo: https://github.com/lukeadministrator/luke-core-ui
+    repo: https://github.com/Luke-works/luke-core-ui
     branch: qa
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
@@ -411,7 +413,7 @@ services:
   - type: web
     name: platform-qa-consumer-ui
     runtime: static
-    repo: https://github.com/lukeadministrator/luke-consumer-ui
+    repo: https://github.com/Luke-works/luke-consumer-ui
     branch: qa
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
@@ -437,7 +439,7 @@ services:
   - type: web
     name: platform-qa-capability
     runtime: docker
-    repo: https://github.com/lukeadministrator/luke-capability-engine
+    repo: https://github.com/Luke-works/luke-capability-engine
     branch: qa
     plan: starter
     region: ohio
@@ -484,7 +486,7 @@ services:
   - type: web
     name: platform-qa-agents
     runtime: python
-    repo: https://github.com/lukeadministrator/luke-agents
+    repo: https://github.com/Luke-works/luke-agents
     branch: qa
     plan: starter
     region: ohio
@@ -519,7 +521,7 @@ services:
 #   - type: web
 #     name: platform-uat-engine
 #     runtime: docker
-#     repo: https://github.com/lukeadministrator/luke-core-engine
+#     repo: https://github.com/Luke-works/luke-core-engine
 #     branch: uat
 #     plan: starter
 #     region: ohio
@@ -566,7 +568,7 @@ services:
 #   - type: web
 #     name: platform-uat-auth
 #     runtime: docker
-#     repo: https://github.com/lukeadministrator/luke-auth-engine
+#     repo: https://github.com/Luke-works/luke-auth-engine
 #     branch: uat
 #     plan: starter
 #     region: ohio
@@ -586,7 +588,7 @@ services:
 #   - type: web
 #     name: platform-uat-ui
 #     runtime: static
-#     repo: https://github.com/lukeadministrator/luke-core-ui
+#     repo: https://github.com/Luke-works/luke-core-ui
 #     branch: uat
 #     buildCommand: npm ci && npm run build
 #     staticPublishPath: ./dist
@@ -609,7 +611,7 @@ services:
 #   - type: web
 #     name: platform-uat-consumer-ui
 #     runtime: static
-#     repo: https://github.com/lukeadministrator/luke-consumer-ui
+#     repo: https://github.com/Luke-works/luke-consumer-ui
 #     branch: uat
 #     buildCommand: npm ci && npm run build
 #     staticPublishPath: ./dist
@@ -636,7 +638,7 @@ services:
 #   - type: web
 #     name: platform-uat-agents
 #     runtime: python
-#     repo: https://github.com/lukeadministrator/luke-agents
+#     repo: https://github.com/Luke-works/luke-agents
 #     branch: uat
 #     plan: starter
 #     region: ohio
