@@ -46,7 +46,7 @@
 
 databases:
   - name: luke-nonprod-db
-    plan: basic-256mb
+    plan: basic-1gb          # up from 256MB: the merged engine (Camunda + capability tables + full history) needs DB headroom
     databaseName: luke_camunda
     user: luke
     region: ohio
@@ -74,7 +74,7 @@ services:
     runtime: docker
     repo: https://github.com/Luke-works/luke-core-engine
     branch: develop
-    plan: starter
+    plan: standard           # 2GB — merged engine (Camunda + GraalVM/Jython/Groovy + capability) OOMs on the 512MB starter
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
@@ -274,7 +274,7 @@ services:
     runtime: docker
     repo: https://github.com/Luke-works/luke-core-engine
     branch: qa
-    plan: starter
+    plan: standard           # 2GB — merged engine OOMs on the 512MB starter (qa gets the merge when develop→qa lands)
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
