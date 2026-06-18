@@ -114,11 +114,23 @@ services:
         value: "true"
       - key: LUKE_AUTH_GATEWAY_JWKS_URL
         value: https://platform-dev-auth.onrender.com/.well-known/jwks.json
-      # Reach the capability engine (Forms, etc.) via the CapabilitiesProxyController.
-      - key: CAPABILITIES_BASE_URL
-        value: https://platform-dev-capability.onrender.com
-      # Forms → Camunda intake: validate the cap→core /api/internal/process-start call.
+      # Capability domain (forms/email/secrets/embed) is now IN-PROCESS — no proxy URL.
+      # Shared secret still guards the retained /api/internal/** endpoints.
       - fromGroup: platform-dev-internal
+      # ── Folded-in capability env (was the platform-dev-capability service) ──
+      - key: POSTMARK_ACCOUNT_TOKEN
+        sync: false
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: EMAIL_DEFAULT_FROM
+        sync: false
+      - key: EMAIL_SENDER_BASE_DOMAIN
+        value: lukeflow.com
+      # Secrets: use the built-in dev key in non-prod so the engine boots with NO
+      # dashboard secret (SecretCrypto is fail-fast on a missing active key). Prod
+      # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
+      - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
   # Runs the WorkOS login flows (/auth/*) for luke-consumer-ui, verifies the
@@ -137,8 +149,9 @@ services:
     envVars:
       - key: CORE_ENGINE_URL
         value: https://platform-dev-engine.onrender.com
+      # Capability routes are served by the engine now (merged) — point here.
       - key: CAPABILITIES_BASE_URL
-        value: https://platform-dev-capability.onrender.com
+        value: https://platform-dev-engine.onrender.com
       - key: WORKOS_CLIENT_ID
         sync: false
       - key: WORKOS_API_KEY
@@ -207,54 +220,8 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
 
-  # ── platform-dev-capability (capabilities + Forms) ──────────────────────────
-  # Shares luke-nonprod-db in its OWN schema (capability_dev), separate from the
-  # engine's camunda schema. Verifies the gateway act-as token via the auth JWKS.
-  - type: web
-    name: platform-dev-capability
-    runtime: docker
-    repo: https://github.com/Luke-works/luke-capability-engine
-    branch: develop
-    plan: starter
-    region: ohio
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /actuator/health
-    envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: postgres
-      - key: DB_SCHEMA
-        value: capability_dev
-      - key: POSTGRES_HOST
-        fromDatabase:
-          name: luke-nonprod-db
-          property: host
-      - key: POSTGRES_PORT
-        fromDatabase:
-          name: luke-nonprod-db
-          property: port
-      - key: POSTGRES_DATABASE
-        fromDatabase:
-          name: luke-nonprod-db
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: luke-nonprod-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: luke-nonprod-db
-          property: password
-      - key: LUKE_AUTH_GATEWAY_JWKS_URL
-        value: https://platform-dev-auth.onrender.com/.well-known/jwks.json
-      - key: ALLOWED_ORIGINS
-        value: https://platform-dev-consumer-ui.onrender.com
-      # Forms → Camunda intake (embed/webhook submit → process start).
-      - fromGroup: platform-dev-internal
-      - key: CORE_ENGINE_BASE_URL
-        value: https://platform-dev-engine.onrender.com
-      # Signs/verifies public embed tokens (set a real value; this generates one).
-      - key: LUKE_EMBED_HMAC_SECRET
-        generateValue: true
+  # platform-dev-capability REMOVED — luke-capability-engine merged into the engine.
+  # forms/email/secrets/embed now run in platform-dev-engine (its env was folded in).
 
   # ── platform-dev-agents (LukeTalks AI agents) ───────────────────────────────
   # FastAPI app hosting the agent fleet under /agents/<slug>; the form agent is
@@ -347,11 +314,23 @@ services:
         value: "true"
       - key: LUKE_AUTH_GATEWAY_JWKS_URL
         value: https://platform-qa-auth.onrender.com/.well-known/jwks.json
-      # Reach the capability engine (Forms, etc.) via the CapabilitiesProxyController.
-      - key: CAPABILITIES_BASE_URL
-        value: https://platform-qa-capability.onrender.com
-      # Forms → Camunda intake: validate the cap→core /api/internal/process-start call.
+      # Capability domain (forms/email/secrets/embed) is now IN-PROCESS — no proxy URL.
+      # Shared secret still guards the retained /api/internal/** endpoints.
       - fromGroup: platform-qa-internal
+      # ── Folded-in capability env (was the platform-qa-capability service) ──
+      - key: POSTMARK_ACCOUNT_TOKEN
+        sync: false
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: EMAIL_DEFAULT_FROM
+        sync: false
+      - key: EMAIL_SENDER_BASE_DOMAIN
+        value: lukeflow.com
+      # Secrets: use the built-in dev key in non-prod so the engine boots with NO
+      # dashboard secret (SecretCrypto is fail-fast on a missing active key). Prod
+      # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
+      - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
   # Runs the WorkOS login flows; WORKOS_CLIENT_ID/API_KEY are sync:false (set in
@@ -368,8 +347,9 @@ services:
     envVars:
       - key: CORE_ENGINE_URL
         value: https://platform-qa-engine.onrender.com
+      # Capability routes are served by the engine now (merged) — point here.
       - key: CAPABILITIES_BASE_URL
-        value: https://platform-qa-capability.onrender.com
+        value: https://platform-qa-engine.onrender.com
       - key: WORKOS_CLIENT_ID
         sync: false
       - key: WORKOS_API_KEY
@@ -435,52 +415,8 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
 
-  # ── platform-qa-capability (capabilities + Forms) ───────────────────────────
-  - type: web
-    name: platform-qa-capability
-    runtime: docker
-    repo: https://github.com/Luke-works/luke-capability-engine
-    branch: qa
-    plan: starter
-    region: ohio
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /actuator/health
-    envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: postgres
-      - key: DB_SCHEMA
-        value: capability_qa
-      - key: POSTGRES_HOST
-        fromDatabase:
-          name: luke-nonprod-db
-          property: host
-      - key: POSTGRES_PORT
-        fromDatabase:
-          name: luke-nonprod-db
-          property: port
-      - key: POSTGRES_DATABASE
-        fromDatabase:
-          name: luke-nonprod-db
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: luke-nonprod-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: luke-nonprod-db
-          property: password
-      - key: LUKE_AUTH_GATEWAY_JWKS_URL
-        value: https://platform-qa-auth.onrender.com/.well-known/jwks.json
-      - key: ALLOWED_ORIGINS
-        value: https://platform-qa-consumer-ui.onrender.com
-      # Forms → Camunda intake (embed/webhook submit → process start).
-      - fromGroup: platform-qa-internal
-      - key: CORE_ENGINE_BASE_URL
-        value: https://platform-qa-engine.onrender.com
-      # Signs/verifies public embed tokens (set a real value; this generates one).
-      - key: LUKE_EMBED_HMAC_SECRET
-        generateValue: true
+  # platform-qa-capability REMOVED — luke-capability-engine merged into the engine.
+  # forms/email/secrets/embed now run in platform-qa-engine (its env was folded in).
 
   # ── platform-qa-agents (LukeTalks AI agents) ────────────────────────────────
   - type: web

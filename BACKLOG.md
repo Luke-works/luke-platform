@@ -5,7 +5,14 @@ Cross-cutting follow-ups tracked at the platform level.
 ## Security
 
 ### Operator-gate capability-engine admin routes
-**Status:** open · **Added:** 2026-06-05
+**Status:** ✅ RESOLVED (2026-06-18, via the capability→core merge) · **Added:** 2026-06-05
+
+**Resolution:** capability merged into core. `/api/tenants/**` is now reached only
+in-process by core's admin controllers (which authorize via `requireAdmin` first),
+and the catalog WRITE routes (`POST/PUT/DELETE /api/capabilities/**`) are gated by
+the operator credential — `OperatorAuthFilter` was extended to cover them, with GET
+left public. Verified by `CapabilityCatalogAuthTest`. (Original issue below.)
+
 
 capability-engine's admin routes — `/api/tenants/**` (subscriptions + per-user
 capability grants) and the catalog write routes (`POST/PUT/DELETE /api/capabilities/**`)
