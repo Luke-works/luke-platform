@@ -191,6 +191,24 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Route B M2 — clickjacking + baseline security headers. These SPAs must NOT be framable; the
+      # public embed surface is served separately by the engine (/embed/:token) with its own
+      # per-tenant frame-ancestors policy, so a blanket deny here is safe.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
 
   # ── platform-dev-consumer-ui (end-user app) ────────────────────────────────
   # Headless WorkOS: the SPA talks only to the auth gateway (/auth/*) — no auth
@@ -219,6 +237,24 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Route B M2 — clickjacking + baseline security headers. These SPAs must NOT be framable; the
+      # public embed surface is served separately by the engine (/embed/:token) with its own
+      # per-tenant frame-ancestors policy, so a blanket deny here is safe.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
 
   # platform-dev-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-dev-engine (its env was folded in).
@@ -388,6 +424,24 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Route B M2 — clickjacking + baseline security headers. These SPAs must NOT be framable; the
+      # public embed surface is served separately by the engine (/embed/:token) with its own
+      # per-tenant frame-ancestors policy, so a blanket deny here is safe.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
 
   # ── platform-qa-consumer-ui (end-user app) ─────────────────────────────────
   - type: web
@@ -414,6 +468,24 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Route B M2 — clickjacking + baseline security headers. These SPAs must NOT be framable; the
+      # public embed surface is served separately by the engine (/embed/:token) with its own
+      # per-tenant frame-ancestors policy, so a blanket deny here is safe.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
 
   # platform-qa-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-qa-engine (its env was folded in).
