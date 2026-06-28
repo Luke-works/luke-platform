@@ -131,6 +131,30 @@ services:
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
+      # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
+      # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
+      - key: LUKE_SIGN_KEYSTORE_BASE64
+        sync: false
+      - key: LUKE_SIGN_KEYSTORE_PASSWORD
+        sync: false
+      - key: LUKE_SIGN_KEY_ALIAS
+        sync: false
+      # Base URL for public /sign/:token links in engine-sent mail (SIG-9); set to the
+      # consumer-ui public origin in the dashboard. UI-built links don't need it today.
+      - key: SIGN_PUBLIC_BASE_URL
+        sync: false
+      # Durable signed/source PDFs on the persistent disk below (signed contracts must
+      # survive redeploys). Scale-safe prod option: provider=s3 + LUKE_DOCSTORE_BUCKET/
+      # REGION/ACCESS_KEY/SECRET_KEY, then drop the disk (a disk pins the service to 1 instance).
+      - key: LUKE_DOCSTORE_PROVIDER
+        value: local
+      - key: LUKE_DOCSTORE_LOCAL_DIR
+        value: /data/docstore
+    disk:
+      name: signatures-docstore-dev
+      mountPath: /data
+      sizeGB: 1
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
   # Runs the WorkOS login flows (/auth/*) for luke-consumer-ui, verifies the
@@ -331,6 +355,30 @@ services:
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
+      # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
+      # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
+      - key: LUKE_SIGN_KEYSTORE_BASE64
+        sync: false
+      - key: LUKE_SIGN_KEYSTORE_PASSWORD
+        sync: false
+      - key: LUKE_SIGN_KEY_ALIAS
+        sync: false
+      # Base URL for public /sign/:token links in engine-sent mail (SIG-9); set to the
+      # consumer-ui public origin in the dashboard. UI-built links don't need it today.
+      - key: SIGN_PUBLIC_BASE_URL
+        sync: false
+      # Durable signed/source PDFs on the persistent disk below (signed contracts must
+      # survive redeploys). Scale-safe prod option: provider=s3 + LUKE_DOCSTORE_BUCKET/
+      # REGION/ACCESS_KEY/SECRET_KEY, then drop the disk (a disk pins the service to 1 instance).
+      - key: LUKE_DOCSTORE_PROVIDER
+        value: local
+      - key: LUKE_DOCSTORE_LOCAL_DIR
+        value: /data/docstore
+    disk:
+      name: signatures-docstore-qa
+      mountPath: /data
+      sizeGB: 1
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
   # Runs the WorkOS login flows; WORKOS_CLIENT_ID/API_KEY are sync:false (set in
