@@ -126,11 +126,11 @@ POLICY_JSON="$(cat <<JSON
   "Version": "2012-10-17",
   "Statement": [
     { "Sid": "ObjectRW", "Effect": "Allow",
-      "Action": ["s3:PutObject","s3:GetObject","s3:DeleteObject",
+      "Action": ["s3:PutObject","s3:GetObject","s3:DeleteObject","s3:DeleteObjectVersion",
                  "s3:PutObjectRetention","s3:GetObjectRetention","s3:GetObjectVersion"],
       "Resource": "arn:aws:s3:::${BUCKET}/*" },
     { "Sid": "BucketList", "Effect": "Allow",
-      "Action": ["s3:ListBucket","s3:GetBucketLocation"],
+      "Action": ["s3:ListBucket","s3:ListBucketVersions","s3:GetBucketLocation"],
       "Resource": "arn:aws:s3:::${BUCKET}" }
   ]
 }
