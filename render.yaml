@@ -144,17 +144,23 @@ services:
       # consumer-ui public origin in the dashboard. UI-built links don't need it today.
       - key: SIGN_PUBLIC_BASE_URL
         sync: false
-      # Durable signed/source PDFs on the persistent disk below (signed contracts must
-      # survive redeploys). Scale-safe prod option: provider=s3 + LUKE_DOCSTORE_BUCKET/
-      # REGION/ACCESS_KEY/SECRET_KEY, then drop the disk (a disk pins the service to 1 instance).
+      # ── Document store: AWS S3 (DOC-7/DOC-10) ──────────────────────────────
+      # Bucket: luke-docstore-dev (infra/s3/provision-docstore.sh --env dev). provider=s3
+      # selects the engine's S3DocumentStore (DOC-7) so SIGNATURE PDFs land in S3 (no disk)
+      # under {tenantId}/{key} — the SAME bucket+scheme the file-proxy reads, so a signed PDF
+      # is also resolvable via GET /api/documents/{id}/content. The GENERAL document byte path
+      # (upload/download) is the platform-dev-file-proxy service below, NOT this engine.
+      # NOTE: the browser NEVER talks to S3 — bytes are proxied (no presigned URLs).
       - key: LUKE_DOCSTORE_PROVIDER
-        value: local
-      - key: LUKE_DOCSTORE_LOCAL_DIR
-        value: /data/docstore
-    disk:
-      name: signatures-docstore-dev
-      mountPath: /data
-      sizeGB: 1
+        value: s3
+      - key: LUKE_DOCSTORE_BUCKET
+        value: luke-docstore-dev
+      - key: LUKE_DOCSTORE_REGION
+        value: us-east-2
+      - key: LUKE_DOCSTORE_ACCESS_KEY
+        sync: false                # set in the dashboard from ~/luke-docstore-dev-key.json
+      - key: LUKE_DOCSTORE_SECRET_KEY
+        sync: false
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
   # Runs the WorkOS login flows (/auth/*) for luke-consumer-ui, verifies the
@@ -176,6 +182,10 @@ services:
       # Capability routes are served by the engine now (merged) — point here.
       - key: CAPABILITIES_BASE_URL
         value: https://platform-dev-engine.onrender.com
+      # DOCUMENTS byte tier: route /api/documents/** to the file-proxy (DOC-3/DOC-11). The
+      # gateway injects the vouched X-User-Id on this hop. Unset → documents fall through to core.
+      - key: FILE_PROXY_URL
+        value: https://platform-dev-file-proxy.onrender.com
       - key: WORKOS_CLIENT_ID
         sync: false
       - key: WORKOS_API_KEY
@@ -193,6 +203,40 @@ services:
         value: https://consdev.lukeflow.com,https://*.lukeflow.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
       # The engine refetches the JWKS on the new kid after a restart.
+
+  # ── platform-dev-file-proxy (DOCUMENTS byte tier) ───────────────────────────
+  # The thin, stateless S3 byte-pipe (luke-file-proxy, CHARTER.md). The gateway routes
+  # /api/documents/** here; it streams uploads→S3 and GET /content←S3, and calls the engine's
+  # /api/internal/documents/** (guarded by the shared LUKE_INTERNAL_SHARED_SECRET) for authZ +
+  # Document state — never bytes. Holds the dev S3 IAM key so document bytes stay OFF the heavy
+  # core JVM. Spring Web + AWS SDK only → fits the starter plan (streaming = bounded heap).
+  # PREREQUISITE: push luke-file-proxy to https://github.com/Luke-works/luke-file-proxy (branch
+  # develop) before this service can deploy; set the two LUKE_DOCSTORE_* secrets in the dashboard
+  # from ~/luke-docstore-dev-key.json (the SAME dev IAM key the engine uses).
+  - type: web
+    name: platform-dev-file-proxy
+    runtime: docker
+    repo: https://github.com/Luke-works/luke-file-proxy
+    branch: develop
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: LUKE_CORE_BASE_URL
+        value: https://platform-dev-engine.onrender.com
+      # Same shared secret the engine uses to guard /api/internal/** (must MATCH the engine's).
+      - fromGroup: platform-dev-internal
+      - key: LUKE_DOCSTORE_PROVIDER
+        value: s3
+      - key: LUKE_DOCSTORE_BUCKET
+        value: luke-docstore-dev
+      - key: LUKE_DOCSTORE_REGION
+        value: us-east-2
+      - key: LUKE_DOCSTORE_ACCESS_KEY
+        sync: false                # ~/luke-docstore-dev-key.json
+      - key: LUKE_DOCSTORE_SECRET_KEY
+        sync: false
 
   - type: web
     name: platform-dev-ui
@@ -368,17 +412,19 @@ services:
       # consumer-ui public origin in the dashboard. UI-built links don't need it today.
       - key: SIGN_PUBLIC_BASE_URL
         sync: false
-      # Durable signed/source PDFs on the persistent disk below (signed contracts must
-      # survive redeploys). Scale-safe prod option: provider=s3 + LUKE_DOCSTORE_BUCKET/
-      # REGION/ACCESS_KEY/SECRET_KEY, then drop the disk (a disk pins the service to 1 instance).
+      # ── Document store: AWS S3 (DOC-7/DOC-10) ──────────────────────────────
+      # Bucket: luke-docstore-qa. provider=s3 → engine S3DocumentStore (signature PDFs in S3,
+      # same bucket+scheme the file-proxy reads). General doc bytes go via platform-qa-file-proxy.
       - key: LUKE_DOCSTORE_PROVIDER
-        value: local
-      - key: LUKE_DOCSTORE_LOCAL_DIR
-        value: /data/docstore
-    disk:
-      name: signatures-docstore-qa
-      mountPath: /data
-      sizeGB: 1
+        value: s3
+      - key: LUKE_DOCSTORE_BUCKET
+        value: luke-docstore-qa
+      - key: LUKE_DOCSTORE_REGION
+        value: us-east-2
+      - key: LUKE_DOCSTORE_ACCESS_KEY
+        sync: false
+      - key: LUKE_DOCSTORE_SECRET_KEY
+        sync: false
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
   # Runs the WorkOS login flows; WORKOS_CLIENT_ID/API_KEY are sync:false (set in
@@ -398,6 +444,9 @@ services:
       # Capability routes are served by the engine now (merged) — point here.
       - key: CAPABILITIES_BASE_URL
         value: https://platform-qa-engine.onrender.com
+      # DOCUMENTS byte tier: route /api/documents/** to the qa file-proxy (gateway injects X-User-Id).
+      - key: FILE_PROXY_URL
+        value: https://platform-qa-file-proxy.onrender.com
       - key: WORKOS_CLIENT_ID
         sync: false
       - key: WORKOS_API_KEY
@@ -414,6 +463,34 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://consqa.lukeflow.com,https://*.lukeflow.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
+
+  # ── platform-qa-file-proxy (DOCUMENTS byte tier) ────────────────────────────
+  # Thin S3 byte-pipe (luke-file-proxy). Mirrors platform-dev-file-proxy for qa; holds the qa
+  # S3 IAM key. PREREQUISITE: luke-file-proxy pushed (branch qa) + the qa scoped IAM user created
+  # (infra/s3 README) and its key set in the dashboard.
+  - type: web
+    name: platform-qa-file-proxy
+    runtime: docker
+    repo: https://github.com/Luke-works/luke-file-proxy
+    branch: qa
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: LUKE_CORE_BASE_URL
+        value: https://platform-qa-engine.onrender.com
+      - fromGroup: platform-qa-internal
+      - key: LUKE_DOCSTORE_PROVIDER
+        value: s3
+      - key: LUKE_DOCSTORE_BUCKET
+        value: luke-docstore-qa
+      - key: LUKE_DOCSTORE_REGION
+        value: us-east-2
+      - key: LUKE_DOCSTORE_ACCESS_KEY
+        sync: false
+      - key: LUKE_DOCSTORE_SECRET_KEY
+        sync: false
 
   - type: web
     name: platform-qa-ui
@@ -500,6 +577,41 @@ services:
         value: "true"
       - key: AGENTS_CORS
         value: https://platform-qa-consumer-ui.onrender.com,https://*.lukeflow.com
+
+  # ── platform-prod-engine (DISABLED scaffold — S3 doc store + strict prod profile) ──
+  # Stood up for the DOCUMENTS rollout: the prod bucket luke-docstore-prod is real
+  # (infra/s3/provision-docstore.sh --env prod --bucket luke-docstore-prod), with
+  # Object Lock COMPLIANCE available for signed PDFs (DOC-5). This block only wires the
+  # DOC STORE + the strict-mode `prod` Spring profile. A real prod env still needs:
+  #   • a dedicated prod Postgres (NOT the shared luke-nonprod-db)
+  #   • a prod auth gateway + prod WorkOS project + prod ALLOWED_ORIGINS/URLs
+  #   • LUKE_SECRETS_ACTIVE_KEY_ID/_KEYS_V1 + PAdES keystore (prod certs)
+  # Fill those in (TODO) before uncommenting — do NOT enable for S3 alone.
+#   - type: web
+#     name: platform-prod-engine
+#     runtime: docker
+#     repo: https://github.com/Luke-works/luke-core-engine
+#     branch: main                 # TODO: confirm prod branch
+#     plan: standard
+#     region: ohio
+#     dockerfilePath: ./Dockerfile
+#     healthCheckPath: /actuator/health
+#     envVars:
+#       - key: SPRING_PROFILES_ACTIVE
+#         value: postgres,prod      # strict-mode prod profile (fail-fast guards incl. DocstoreProdGuard, DOC-8)
+#       # TODO prod DB (dedicated instance), auth gateway, secrets, PAdES keystore, URLs.
+#       # ── Document store: AWS S3 (requires DOC-1 shipped) ──
+#       - key: LUKE_DOCSTORE_PROVIDER
+#         value: s3
+#       - key: LUKE_DOCSTORE_BUCKET
+#         value: luke-docstore-prod
+#       - key: LUKE_DOCSTORE_REGION
+#         value: us-east-2
+#       - key: LUKE_DOCSTORE_ACCESS_KEY
+#         sync: false
+#       - key: LUKE_DOCSTORE_SECRET_KEY
+#         sync: false
+#       # Optional SSE-KMS: set LUKE_DOCSTORE_KMS_KEY (provision the bucket with --kms <keyId>).
 
   # ── platform-uat (DISABLED — uncomment this block to enable the uat env) ──
 #   - type: web
