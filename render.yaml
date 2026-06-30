@@ -223,9 +223,11 @@ services:
     runtime: docker
     repo: https://github.com/Luke-works/luke-file-proxy
     branch: develop
-    plan: standard           # up from starter (512MB): now also runs headless Chromium for the form
-                             # submission-PDF renderer (/internal/render/form-pdf); the browser's RSS
-                             # lives outside the JVM, so it needs ~2GB headroom.
+    plan: starter            # non-prod stays at 512MB by choice. NOTE: it now also runs headless
+                             # Chromium for the submission-PDF renderer, which can exceed 512MB — on
+                             # this plan renders may OOM/fail. That's best-effort (a failed render never
+                             # fails the submission), so non-prod submission PDFs may be flaky here.
+                             # PROD must use a larger plan (standard/2GB) for reliable rendering.
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
@@ -489,7 +491,8 @@ services:
     runtime: docker
     repo: https://github.com/Luke-works/luke-file-proxy
     branch: qa
-    plan: standard           # up from starter: also runs headless Chromium for the submission-PDF renderer
+    plan: starter            # non-prod stays at 512MB by choice; headless-Chromium renders may OOM here
+                             # (best-effort, never fails the submission). PROD needs a larger plan.
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
