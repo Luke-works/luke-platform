@@ -161,6 +161,11 @@ services:
         sync: false                # set in the dashboard from ~/luke-docstore-dev-key.json
       - key: LUKE_DOCSTORE_SECRET_KEY
         sync: false
+      # "Save submission as Attachment": the engine calls the file-proxy's headless-Chromium render
+      # endpoint to turn a completed submission into a PDF. Unset → the feature no-ops. Gated by the
+      # shared LUKE_INTERNAL_SHARED_SECRET (already injected via the platform-dev-internal group).
+      - key: LUKE_RENDER_URL
+        value: https://platform-dev-file-proxy.onrender.com
 
   # ── platform-dev-auth (consumer gateway) ────────────────────────────────────
   # Runs the WorkOS login flows (/auth/*) for luke-consumer-ui, verifies the
@@ -218,7 +223,9 @@ services:
     runtime: docker
     repo: https://github.com/Luke-works/luke-file-proxy
     branch: develop
-    plan: starter
+    plan: standard           # up from starter (512MB): now also runs headless Chromium for the form
+                             # submission-PDF renderer (/internal/render/form-pdf); the browser's RSS
+                             # lives outside the JVM, so it needs ~2GB headroom.
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
@@ -431,6 +438,9 @@ services:
         sync: false
       - key: LUKE_DOCSTORE_SECRET_KEY
         sync: false
+      # "Save submission as Attachment" — engine → file-proxy headless-Chromium render endpoint.
+      - key: LUKE_RENDER_URL
+        value: https://platform-qa-file-proxy.onrender.com
 
   # ── platform-qa-auth (consumer gateway) ─────────────────────────────────────
   # Runs the WorkOS login flows; WORKOS_CLIENT_ID/API_KEY are sync:false (set in
@@ -479,7 +489,7 @@ services:
     runtime: docker
     repo: https://github.com/Luke-works/luke-file-proxy
     branch: qa
-    plan: starter
+    plan: standard           # up from starter: also runs headless Chromium for the submission-PDF renderer
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
