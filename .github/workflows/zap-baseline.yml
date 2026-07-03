@@ -1,0 +1,51 @@
+name: ZAP Baseline (DAST)
+# Layer-1 continuous DAST: OWASP ZAP baseline scan against a STAGED environment.
+# Baseline = PASSIVE only (spider + passive rules: missing security headers, cookie
+# flags, information leaks) — it does NOT attack, so it is safe to run against qa.
+#
+# ⚠️  NEVER point this at production or at a third-party host. Targets must be our own
+#     staged (qa/uat) services. Full active scans belong in a scheduled, authorised
+#     pentest window (see security/PENTEST_SCOPE.md), not here.
+#
+# Runs weekly and on demand. Informational: it uploads a report artifact and (best
+# effort) opens issues; it does not fail the pipeline.
+
+on:
+  schedule:
+    - cron: '0 5 * * 1' # weekly, Monday 05:00 UTC
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Staged base URL to scan (qa/uat only — never prod)'
+        required: true
+        default: 'https://consqa.lukeflow.com'
+
+permissions:
+  contents: read
+  issues: write # ZAP opens/updates an issue with the findings summary
+
+jobs:
+  zap-baseline:
+    name: ZAP baseline scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # The public, browser-reachable staged surfaces. Add uat here when it exists.
+        target:
+          - https://consqa.lukeflow.com          # consumer-ui (end-user app)
+          - https://authqa.lukeflow.com           # auth gateway
+          - https://platform-qa-ui.onrender.com   # core-ui (ops console)
+    steps:
+      - name: Resolve target
+        id: t
+        run: echo "url=${{ github.event.inputs.target || matrix.target }}" >> "$GITHUB_OUTPUT"
+      - name: ZAP baseline
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ steps.t.outputs.url }}
+          # -I: do not fail the build on warnings (informational). Tune rules in .zap/rules.tsv.
+          cmd_options: '-I'
+          allow_issue_writing: true
+          fail_action: false
