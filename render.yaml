@@ -272,6 +272,27 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Security headers for the privileged Camunda ops console (never framed; uses no
+      # camera/mic/geo/payment). Mirrors the consumer-ui set. CSP starts REPORT-ONLY (never
+      # blocks) — narrow connect-src to the per-env engine origin before switching to enforcing.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # ── platform-dev-consumer-ui (end-user app) ────────────────────────────────
   # Headless WorkOS: the SPA talks only to the auth gateway (/auth/*) — no auth
@@ -565,6 +586,27 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Security headers for the privileged Camunda ops console (never framed; uses no
+      # camera/mic/geo/payment). Mirrors the consumer-ui set. CSP starts REPORT-ONLY (never
+      # blocks) — narrow connect-src to the per-env engine origin before switching to enforcing.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # ── platform-qa-consumer-ui (end-user app) ─────────────────────────────────
   - type: web
