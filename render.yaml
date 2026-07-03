@@ -324,6 +324,13 @@ services:
       - path: /*
         name: Permissions-Policy
         value: camera=(), microphone=(), geolocation=(), payment=()
+      # Content-Security-Policy in REPORT-ONLY mode: it never blocks — it only reports
+      # violations (browser console / report-uri) so we can tighten to an enforcing policy
+      # without breaking the app. connect-src is broad (https:) on purpose to start; narrow
+      # it to the per-env gateway + Sentry + agents origins before switching to enforcing.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # platform-dev-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-dev-engine (its env was folded in).
@@ -608,6 +615,13 @@ services:
       - path: /*
         name: Permissions-Policy
         value: camera=(), microphone=(), geolocation=(), payment=()
+      # Content-Security-Policy in REPORT-ONLY mode: it never blocks — it only reports
+      # violations (browser console / report-uri) so we can tighten to an enforcing policy
+      # without breaking the app. connect-src is broad (https:) on purpose to start; narrow
+      # it to the per-env gateway + Sentry + agents origins before switching to enforcing.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # platform-qa-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-qa-engine (its env was folded in).
