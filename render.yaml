@@ -131,6 +131,10 @@ services:
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
+      # fail-fasts on the dev default under the prod profile — generate a real value.
+      - key: FORMS_RECIPIENT_HMAC_SECRET
+        generateValue: true
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
       # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
@@ -431,6 +435,10 @@ services:
       # dashboard secret (SecretCrypto is fail-fast on a missing active key). Prod
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
+      # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
+      # fail-fasts on the dev default under the prod profile — generate a real value.
+      - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
