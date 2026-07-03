@@ -131,6 +131,10 @@ services:
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
+      # fail-fasts on the dev default under the prod profile — generate a real value.
+      - key: FORMS_RECIPIENT_HMAC_SECRET
+        generateValue: true
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
       # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
@@ -302,6 +306,31 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Security headers — safe for the dashboard SPA (it is never framed and uses no
+      # camera/mic/geo/payment). A full content Content-Security-Policy is deferred: roll
+      # it out Report-Only first, once the per-env gateway + Sentry origins are pinned.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      # Content-Security-Policy in REPORT-ONLY mode: it never blocks — it only reports
+      # violations (browser console / report-uri) so we can tighten to an enforcing policy
+      # without breaking the app. connect-src is broad (https:) on purpose to start; narrow
+      # it to the per-env gateway + Sentry + agents origins before switching to enforcing.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # platform-dev-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-dev-engine (its env was folded in).
@@ -413,6 +442,10 @@ services:
       # dashboard secret (SecretCrypto is fail-fast on a missing active key). Prod
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
+      # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
+      # fail-fasts on the dev default under the prod profile — generate a real value.
+      - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
@@ -564,6 +597,31 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # Security headers — safe for the dashboard SPA (it is never framed and uses no
+      # camera/mic/geo/payment). A full content Content-Security-Policy is deferred: roll
+      # it out Report-Only first, once the per-env gateway + Sentry origins are pinned.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      # Content-Security-Policy in REPORT-ONLY mode: it never blocks — it only reports
+      # violations (browser console / report-uri) so we can tighten to an enforcing policy
+      # without breaking the app. connect-src is broad (https:) on purpose to start; narrow
+      # it to the per-env gateway + Sentry + agents origins before switching to enforcing.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # platform-qa-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-qa-engine (its env was folded in).
