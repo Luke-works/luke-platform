@@ -108,7 +108,7 @@ services:
       - key: CAMUNDA_ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://consdev.lukeflow.com,https://platform-dev-consumer-ui.onrender.com,https://platform-dev-ui.onrender.com
+        value: https://consdev.lukeflow.com,https://coredev.lukeflow.com,https://platform-dev-consumer-ui.onrender.com,https://platform-dev-ui.onrender.com
       # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
       - key: LUKE_AUTH_GATEWAY_ENABLED
         value: "true"
@@ -209,7 +209,7 @@ services:
       - key: WORKOS_COOKIE_SAMESITE
         value: Lax
       - key: ALLOWED_ORIGINS
-        value: https://consdev.lukeflow.com,https://platform-dev-consumer-ui.onrender.com,https://platform-dev-ui.onrender.com
+        value: https://consdev.lukeflow.com,https://coredev.lukeflow.com,https://platform-dev-consumer-ui.onrender.com,https://platform-dev-ui.onrender.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
       # The engine refetches the JWKS on the new kid after a restart.
 
@@ -399,7 +399,7 @@ services:
         value: "true"
       # Lock browser CORS to the consumer-ui Form Builder origin(s).
       - key: AGENTS_CORS
-        value: https://consdev.lukeflow.com,https://platform-dev-consumer-ui.onrender.com,https://platform-dev-ui.onrender.com
+        value: https://consdev.lukeflow.com,https://coredev.lukeflow.com,https://platform-dev-consumer-ui.onrender.com,https://platform-dev-ui.onrender.com
 
   # ── platform-qa ───────────────────────────────────────────────────────────
   - type: web
@@ -441,7 +441,7 @@ services:
       - key: CAMUNDA_ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://consqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
+        value: https://consqa.lukeflow.com,https://coreqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
       # Trust the consumer auth gateway (luke-auth-engine) for Bearer tokens.
       - key: LUKE_AUTH_GATEWAY_ENABLED
         value: "true"
@@ -533,7 +533,7 @@ services:
       - key: WORKOS_COOKIE_SAMESITE
         value: Lax
       - key: ALLOWED_ORIGINS
-        value: https://consqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
+        value: https://consqa.lukeflow.com,https://coreqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
       # GATEWAY_PRIVATE_KEY left unset → ephemeral signing key per boot (non-prod).
 
   # ── platform-qa-file-proxy (DOCUMENTS byte tier) ────────────────────────────
@@ -701,7 +701,7 @@ services:
       - key: TRANSCRIPTS_ENABLED
         value: "true"
       - key: AGENTS_CORS
-        value: https://consqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
+        value: https://consqa.lukeflow.com,https://coreqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
 
   # ── platform-prod-engine (DISABLED scaffold — S3 doc store + strict prod profile) ──
   # Stood up for the DOCUMENTS rollout: the prod bucket luke-docstore-prod is real
