@@ -125,7 +125,7 @@ without explicit approval.** Stop at every GATE and report; wait for a go.
 ## GROUND TRUTH (verify before trusting; the repo wins if this is stale)
 
 **Services**
-- `luke-core-engine` — Spring Boot 3.4 / Java 21, CIBSeven (Camunda 7), port 8080.
+- `luke-core-engine` — Spring Boot 3.4 / Java 21, FluxNova (Camunda 7), port 8080.
   Own JPA entities under `com.luke.engine` (`RegisteredTopic`; `TenantAwareEntity`
   is an abstract base). Hosts `CapabilitiesProxyController` that forwards
   `/api/capabilities/**`, `/api/my-subscriptions/**`, `/api/business-calendars/**`,
