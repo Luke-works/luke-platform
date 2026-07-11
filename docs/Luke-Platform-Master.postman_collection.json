@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Luke Platform \u2014 Master",
-    "description": "Everything built in luke-0531: auth-engine (gateway+translator), core-engine (CIBSeven identity/roles/topics/process), capability-engine (capabilities + per-user access + Forms).\n\nRUN ORDER: run top-to-bottom. Folder 0 sets up identity + FORMS access; folder 1 'Dev token' captures a gateway act-as token into {{token}} (reused by all later Bearer calls \u2014 one token covers a full run). If a single request 401s after ~60s, re-run folder 1 'Dev token'.\n\nASSUMES the local dev stack:\n  \u2022 auth-engine :8083  LUKE_AUTH_DEV_MODE=true, LUKE_AUTH_SERVICE_KEYS=s3cret-orderbot=svc:order-bot\n  \u2022 core-engine :8080  LUKE_AUTH_GATEWAY_ENABLED=true + JWKS=http://localhost:8083/.well-known/jwks.json\n  \u2022 capability  :8082  LUKE_AUTH_GATEWAY_JWKS_URL=http://localhost:8083/.well-known/jwks.json\nAuth per folder: Basic admin (core /api + engine-rest admin), gateway Bearer (forms/capability/user views), X-Dev-User (/session), X-Service-Key (/service/token).",
+    "description": "Everything built in luke-0531: auth-engine (gateway+translator), core-engine (FluxNova identity/roles/topics/process), capability-engine (capabilities + per-user access + Forms).\n\nRUN ORDER: run top-to-bottom. Folder 0 sets up identity + FORMS access; folder 1 'Dev token' captures a gateway act-as token into {{token}} (reused by all later Bearer calls \u2014 one token covers a full run). If a single request 401s after ~60s, re-run folder 1 'Dev token'.\n\nASSUMES the local dev stack:\n  \u2022 auth-engine :8083  LUKE_AUTH_DEV_MODE=true, LUKE_AUTH_SERVICE_KEYS=s3cret-orderbot=svc:order-bot\n  \u2022 core-engine :8080  LUKE_AUTH_GATEWAY_ENABLED=true + JWKS=http://localhost:8083/.well-known/jwks.json\n  \u2022 capability  :8082  LUKE_AUTH_GATEWAY_JWKS_URL=http://localhost:8083/.well-known/jwks.json\nAuth per folder: Basic admin (core /api + engine-rest admin), gateway Bearer (forms/capability/user views), X-Dev-User (/session), X-Service-Key (/service/token).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -934,7 +934,7 @@
           ]
         }
       ],
-      "description": "Representative CIBSeven REST reads, authenticated by the gateway Bearer (user) or Basic (admin). The full engine-rest surface is available the same way."
+      "description": "Representative FluxNova REST reads, authenticated by the gateway Bearer (user) or Basic (admin). The full engine-rest surface is available the same way."
     },
     {
       "name": "5 \u00b7 Capability Engine \u2014 Catalog & Subscriptions (:8082)",
