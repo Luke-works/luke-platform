@@ -126,6 +126,9 @@ services:
         sync: false
       - key: EMAIL_SENDER_BASE_DOMAIN
         value: lukeflow.com
+      # Public host Postmark POSTs inbound mail to (gateway proxies /api/public/** → engine).
+      - key: EMAIL_INBOUND_PUBLIC_BASE_URL
+        value: https://authdev.lukeflow.com
       # Secrets: use the built-in dev key in non-prod so the engine boots with NO
       # dashboard secret (SecretCrypto is fail-fast on a missing active key). Prod
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
@@ -459,6 +462,9 @@ services:
         sync: false
       - key: EMAIL_SENDER_BASE_DOMAIN
         value: lukeflow.com
+      # Public host Postmark POSTs inbound mail to (gateway proxies /api/public/** → engine).
+      - key: EMAIL_INBOUND_PUBLIC_BASE_URL
+        value: https://authqa.lukeflow.com
       # Secrets: use the built-in dev key in non-prod so the engine boots with NO
       # dashboard secret (SecretCrypto is fail-fast on a missing active key). Prod
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
