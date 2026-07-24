@@ -141,12 +141,15 @@ services:
       # Recipient PORTAL: per-tenant handle secret + email-scoped session secret (mirror the
       # fill secret above), and the portal site's public origin used to build the /portal +
       # magic-link URLs emailed to recipients (the standalone luke-portal static site).
+      # NOTE: FORMS_PORTAL_BASE_URL is the vanity domain — add it as a custom domain on the
+      # matching platform-<env>-portal service (Render dashboard) + a DNS CNAME, as with
+      # consdev/coredev. Until DNS is live, temporarily use the .onrender.com URL instead.
       - key: FORMS_PORTAL_TENANT_SECRET
         generateValue: true
       - key: FORMS_PORTAL_HMAC_SECRET
         generateValue: true
       - key: FORMS_PORTAL_BASE_URL
-        value: https://platform-dev-portal.onrender.com
+        value: https://portaldev.lukeflow.com
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
       # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
@@ -534,12 +537,15 @@ services:
       # Recipient PORTAL: per-tenant handle secret + email-scoped session secret (mirror the
       # fill secret above), and the portal site's public origin used to build the /portal +
       # magic-link URLs emailed to recipients (the standalone luke-portal static site).
+      # NOTE: FORMS_PORTAL_BASE_URL is the vanity domain — add it as a custom domain on the
+      # matching platform-<env>-portal service (Render dashboard) + a DNS CNAME, as with
+      # consdev/coredev. Until DNS is live, temporarily use the .onrender.com URL instead.
       - key: FORMS_PORTAL_TENANT_SECRET
         generateValue: true
       - key: FORMS_PORTAL_HMAC_SECRET
         generateValue: true
       - key: FORMS_PORTAL_BASE_URL
-        value: https://platform-qa-portal.onrender.com
+        value: https://portalqa.lukeflow.com
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
       # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
