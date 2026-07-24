@@ -187,7 +187,9 @@ services:
     plan: starter
     region: ohio
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /actuator/health
+    # Liveness only (process alive) — a core-engine/WorkOS blip must NOT restart the
+    # gateway. Dependency health lives in /actuator/health/readiness (routing/observability).
+    healthCheckPath: /actuator/health/liveness
     envVars:
       - key: CORE_ENGINE_URL
         value: https://platform-dev-engine.onrender.com
@@ -515,7 +517,9 @@ services:
     plan: starter
     region: ohio
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /actuator/health
+    # Liveness only (process alive) — a core-engine/WorkOS blip must NOT restart the
+    # gateway. Dependency health lives in /actuator/health/readiness (routing/observability).
+    healthCheckPath: /actuator/health/liveness
     envVars:
       - key: CORE_ENGINE_URL
         value: https://platform-qa-engine.onrender.com
