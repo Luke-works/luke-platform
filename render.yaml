@@ -138,6 +138,15 @@ services:
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
+      # Recipient PORTAL: per-tenant handle secret + email-scoped session secret (mirror the
+      # fill secret above), and the portal site's public origin used to build the /portal +
+      # magic-link URLs emailed to recipients (the standalone luke-portal static site).
+      - key: FORMS_PORTAL_TENANT_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_HMAC_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_BASE_URL
+        value: https://platform-dev-portal.onrender.com
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
       # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
@@ -358,6 +367,52 @@ services:
         name: Content-Security-Policy-Report-Only
         value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
+  # ── platform-dev-portal (recipient PORTAL — standalone static site) ─────────────────
+  # The recipient persona's capability-agnostic hub. Top-level page (never framed); calls the
+  # PUBLIC portal API cross-origin at the gateway (VITE_PORTAL_API_URL). SPA: /* → /index.html.
+  - type: web
+    name: platform-dev-portal
+    runtime: static
+    repo: https://github.com/Luke-works/luke-portal
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      # Gateway origin the portal calls for /api/public/portal/** + /api/public/form-instances/**.
+      - key: VITE_PORTAL_API_URL
+        value: https://authdev.lukeflow.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      # CSP in REPORT-ONLY to start (never blocks); connect-src broad on purpose — narrow to the
+      # per-env gateway origin before switching to enforcing.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
   # platform-dev-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-dev-engine (its env was folded in).
 
@@ -476,6 +531,15 @@ services:
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
+      # Recipient PORTAL: per-tenant handle secret + email-scoped session secret (mirror the
+      # fill secret above), and the portal site's public origin used to build the /portal +
+      # magic-link URLs emailed to recipients (the standalone luke-portal static site).
+      - key: FORMS_PORTAL_TENANT_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_HMAC_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_BASE_URL
+        value: https://platform-qa-portal.onrender.com
       # ── Signatures (merged from luke-signature-engine, SIG-M) ───────────────
       # PAdES sealing keystore (org PKCS#12 as base64) — set in the dashboard.
       # Without these the sign flow still completes but sealing fails (signed.pdf 409s).
@@ -677,6 +741,52 @@ services:
 
   # platform-qa-capability REMOVED — luke-capability-engine merged into the engine.
   # forms/email/secrets/embed now run in platform-qa-engine (its env was folded in).
+
+  # ── platform-qa-portal (recipient PORTAL — standalone static site) ─────────────────
+  # The recipient persona's capability-agnostic hub. Top-level page (never framed); calls the
+  # PUBLIC portal API cross-origin at the gateway (VITE_PORTAL_API_URL). SPA: /* → /index.html.
+  - type: web
+    name: platform-qa-portal
+    runtime: static
+    repo: https://github.com/Luke-works/luke-portal
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      # Gateway origin the portal calls for /api/public/portal/** + /api/public/form-instances/**.
+      - key: VITE_PORTAL_API_URL
+        value: https://authqa.lukeflow.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      # CSP in REPORT-ONLY to start (never blocks); connect-src broad on purpose — narrow to the
+      # per-env gateway origin before switching to enforcing.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
   # ── platform-qa-agents (LukeTalks AI agents) ────────────────────────────────
   - type: web
