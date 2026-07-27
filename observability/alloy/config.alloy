@@ -1,0 +1,50 @@
+// Grafana Alloy collector for the Luke fleet (OBS-3).
+//
+// Scrapes each backend's Prometheus endpoint and remote_writes to Grafana Cloud. Deploy ONE collector
+// per environment (dev/qa/prod) as a Render service — see render-service.yaml — with the host + token
+// env vars pointed at that environment. Push (remote_write) is used instead of a self-hosted scrape-only
+// Prometheus because a self-hosted Prometheus can't easily reach Render's public services.
+//
+// Required env vars (all Render `sync:false`):
+//   GRAFANA_CLOUD_PROM_URL, GRAFANA_CLOUD_PROM_USER, GRAFANA_CLOUD_PROM_API_KEY  — the remote_write target
+//   MANAGEMENT_METRICS_TOKEN   — the SAME bearer token set on the JVM backends (gates /actuator/prometheus)
+//   CORE_ENGINE_HOST, GATEWAY_HOST, FILE_PROXY_HOST, AGENTS_HOST  — host:443 of each service in THIS env
+//   ENV_NAME                   — dev|qa|prod (label on every series)
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_PROM_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_PROM_USER")
+      password = sys.env("GRAFANA_CLOUD_PROM_API_KEY")
+    }
+  }
+}
+
+// --- JVM backends: /actuator/prometheus, Bearer-token gated (MetricsScrapeAuthFilter) ---
+prometheus.scrape "jvm_backends" {
+  scheme          = "https"
+  metrics_path    = "/actuator/prometheus"
+  scrape_interval = "30s"
+  authorization {
+    type        = "Bearer"
+    credentials = sys.env("MANAGEMENT_METRICS_TOKEN")
+  }
+  targets = [
+    { "__address__" = sys.env("CORE_ENGINE_HOST"), "job" = "core-engine", "env" = sys.env("ENV_NAME") },
+    { "__address__" = sys.env("GATEWAY_HOST"),     "job" = "auth-engine", "env" = sys.env("ENV_NAME") },
+    { "__address__" = sys.env("FILE_PROXY_HOST"),  "job" = "file-proxy",  "env" = sys.env("ENV_NAME") },
+  ]
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// --- agents: its /metrics is an OPEN Prometheus endpoint (no token) ---
+prometheus.scrape "agents" {
+  scheme          = "https"
+  metrics_path    = "/metrics"
+  scrape_interval = "30s"
+  targets = [
+    { "__address__" = sys.env("AGENTS_HOST"), "job" = "agents", "env" = sys.env("ENV_NAME") },
+  ]
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}

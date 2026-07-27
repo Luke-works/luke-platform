@@ -1,0 +1,38 @@
+# Grafana Alloy collector — Render service block (OBS-3). Add ONE per environment to the platform
+# render.yaml `services:` list (dev shown; duplicate + rename for qa/prod, pointing the *_HOST vars
+# at that env's services). Deploys the Dockerfile in this directory.
+#
+# The Grafana Cloud creds + the metrics token are `sync:false` (set in the dashboard). The *_HOST vars
+# are the public host:443 of each service in this environment — use the same hosts the fleet already
+# uses (e.g. platform-dev-engine.onrender.com:443, the gateway host, the file-proxy host, the agents host).
+
+services:
+  - type: web                       # Alloy exposes a health/UI port; 'web' lets Render health-check it
+    name: platform-dev-alloy
+    runtime: image
+    plan: starter                   # smallest tier is plenty for a scrape+push collector
+    rootDir: observability/alloy
+    dockerfilePath: observability/alloy/Dockerfile
+    healthCheckPath: /-/healthy     # Alloy's health endpoint on :12345
+    envVars:
+      - key: ENV_NAME
+        value: dev
+      # Same token you set on core-engine / auth-engine / file-proxy for this env:
+      - key: MANAGEMENT_METRICS_TOKEN
+        sync: false
+      # Scrape targets — host:443 of each service in THIS environment:
+      - key: CORE_ENGINE_HOST
+        value: platform-dev-engine.onrender.com:443
+      - key: GATEWAY_HOST
+        value: authdev.lukeflow.com:443
+      - key: FILE_PROXY_HOST
+        sync: false                 # set to the dev file-proxy host:443
+      - key: AGENTS_HOST
+        value: platform-dev-agents.onrender.com:443
+      # Grafana Cloud remote_write target + creds (from your Grafana Cloud stack → Prometheus → details):
+      - key: GRAFANA_CLOUD_PROM_URL
+        sync: false
+      - key: GRAFANA_CLOUD_PROM_USER
+        sync: false
+      - key: GRAFANA_CLOUD_PROM_API_KEY
+        sync: false
