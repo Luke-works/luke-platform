@@ -1,0 +1,420 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Luke platform — PRODUCTION blueprint  (clears prod-cutover Blocker A)
+#
+# A COMPLETE prod deploy definition for all 7 services + a DEDICATED prod Postgres.
+# This file is intentionally NOT named render.yaml, so Render never auto-reads it —
+# it is INERT until you deliberately activate it (see "Activating" below). That keeps
+# the live non-prod blueprint (render.yaml: dev + qa) completely untouched.
+#
+# It supersedes the partial DISABLED `platform-prod-engine` scaffold still shown in
+# render.yaml (that block only wired the S3 doc store; this file wires everything).
+#
+# ── Activating (Render reads `render.yaml` by name only) ─────────────────────
+# Render Blueprints look for a file literally named `render.yaml` at the connected
+# branch's root. So pick ONE:
+#   (A) Dedicated prod branch (recommended): create a `prod-blueprint` branch of
+#       luke-platform whose render.yaml == this file's contents; connect a NEW
+#       Render Blueprint to that branch. Prod stays isolated from non-prod IaC.
+#   (B) Separate prod repo: put this content as render.yaml in a luke-platform-prod repo.
+# Either way it is a SEPARATE Blueprint + a SEPARATE database from non-prod.
+#
+# ── Before you activate (prerequisites) ──────────────────────────────────────
+#   1. Promote develop → main for EVERY service repo (this blueprint deploys `main`).
+#      main == current prod; the whole hardening effort is on develop today.
+#   2. Create a `main` branch on luke-file-proxy (it has none — only develop + qa).
+#   3. Provision the prod S3 bucket: infra/s3/provision-docstore.sh --env prod
+#      --bucket luke-docstore-prod  (Object Lock COMPLIANCE for signed PDFs, DOC-5).
+#   4. Have the PRODUCTION WorkOS project ready (env environment_01KTHG30DY4BN0EGDTA37J3195)
+#      with its own client id / api key and redirect URIs matching the prod URLs below.
+#   5. Register the prod custom domains (cons/core/auth/portal .lukeflow.com or your
+#      choice) OR accept the deterministic *.onrender.com hosts used below as defaults.
+#
+# ── Secrets you must set in the dashboard (all `sync: false` unless noted) ────
+#   engine:      LUKE_SECRETS_KEYS_V1, POSTMARK_ACCOUNT_TOKEN, POSTMARK_SERVER_TOKEN,
+#                EMAIL_DEFAULT_FROM, CAPABILITY_OPERATOR_PASSWORD, LUKE_SIGN_KEYSTORE_BASE64,
+#                LUKE_SIGN_KEYSTORE_PASSWORD, LUKE_SIGN_KEY_ALIAS, SIGN_PUBLIC_BASE_URL,
+#                LUKE_DOCSTORE_ACCESS_KEY, LUKE_DOCSTORE_SECRET_KEY, MANAGEMENT_METRICS_TOKEN,
+#                SENTRY_DSN   (+ VAPI_* / NANGO_SECRET_KEY only if those capabilities are on)
+#   auth:        WORKOS_CLIENT_ID, WORKOS_API_KEY, GATEWAY_PRIVATE_KEY (PEM PKCS#8 — prod is
+#                stable-key, NOT ephemeral), MANAGEMENT_METRICS_TOKEN, SENTRY_DSN
+#   file-proxy:  LUKE_DOCSTORE_ACCESS_KEY, LUKE_DOCSTORE_SECRET_KEY, MANAGEMENT_METRICS_TOKEN, SENTRY_DSN
+#   agents:      GROQ_API_KEY (+ OPENAI_API_KEY / REDIS_URL if used)
+#   UIs:         VITE_SENTRY_DSN (baked at build — set BEFORE deploy)
+#   MANAGEMENT_METRICS_TOKEN must be the SAME value on engine+auth+file-proxy AND the
+#   observability/ Alloy collector. GATEWAY_VOUCH_SECRET + LUKE_INTERNAL_SHARED_SECRET are
+#   auto-shared via generateValue env-groups below (engine+auth / engine+file-proxy).
+#
+# The core engine runs SPRING_PROFILES_ACTIVE=postgres,prod → its fail-fast guards
+# (InsecureKeyGuard / AuthHardeningGuard / DocstoreProdGuard) will REFUSE to boot until
+# the required real secrets above exist. That is the guard working, not a bug.
+# ─────────────────────────────────────────────────────────────────────────────
+
+databases:
+  - name: luke-prod-db
+    plan: basic-4gb          # dedicated prod instance (NOT the shared luke-nonprod-db). Size per load.
+    databaseName: luke_camunda
+    user: luke
+    region: ohio
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  # ONE shared value each, referenced by multiple services so they always match.
+  - name: platform-prod-internal      # engine <-> file-proxy shared secret (/api/internal/**)
+    envVars:
+      - key: LUKE_INTERNAL_SHARED_SECRET
+        generateValue: true
+  - name: platform-prod-gateway       # engine <-> auth: proof-of-origin lock for the public surface
+    envVars:
+      - key: GATEWAY_VOUCH_SECRET
+        generateValue: true
+
+services:
+  # ── platform-prod-engine (core-engine, STRICT prod profile) ─────────────────
+  - type: web
+    name: platform-prod-engine
+    runtime: docker
+    repo: https://github.com/Luke-works/luke-core-engine
+    branch: main
+    plan: standard           # 2GB min for the merged engine; consider pro for real prod load.
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health/readiness   # DB-aware readiness (drains on shutdown)
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres,prod                       # strict-mode fail-fast guards ON
+      - key: DB_SCHEMA
+        value: platform_prod
+      - key: POSTGRES_HOST
+        fromDatabase: { name: luke-prod-db, property: host }
+      - key: POSTGRES_PORT
+        fromDatabase: { name: luke-prod-db, property: port }
+      - key: POSTGRES_DATABASE
+        fromDatabase: { name: luke-prod-db, property: database }
+      - key: DB_USERNAME
+        fromDatabase: { name: luke-prod-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: luke-prod-db, property: password }
+      - key: CAMUNDA_ADMIN_USER
+        value: admin
+      - key: CAMUNDA_ADMIN_PASSWORD
+        generateValue: true                        # non-default (AdminPasswordGuard); read from dashboard after deploy
+      # Real prod origins. TODO: replace the *.onrender.com hosts with your prod custom domains
+      # (e.g. https://app.lukeflow.com) once DNS is live, and mirror them in the UI/auth blocks.
+      - key: ALLOWED_ORIGINS
+        value: https://platform-prod-consumer-ui.onrender.com,https://platform-prod-ui.onrender.com
+      - key: LUKE_AUTH_GATEWAY_ENABLED
+        value: "true"
+      - key: LUKE_AUTH_GATEWAY_JWKS_URL
+        value: https://platform-prod-auth.onrender.com/.well-known/jwks.json
+      - fromGroup: platform-prod-internal
+      - fromGroup: platform-prod-gateway           # GATEWAY_VOUCH_SECRET (locks public surface, same as auth)
+      # AuthHardeningGuard (prod) requires the capability operator creds to be set.
+      - key: CAPABILITY_OPERATOR_USER
+        value: operator
+      - key: CAPABILITY_OPERATOR_PASSWORD
+        sync: false
+      # Data-encryption key (SecretCrypto) — a REAL managed key in prod, not generated/escrowed here.
+      - key: LUKE_SECRETS_ACTIVE_KEY_ID
+        value: v1
+      - key: LUKE_SECRETS_KEYS_V1
+        sync: false
+      # Email (Postmark)
+      - key: POSTMARK_ACCOUNT_TOKEN
+        sync: false
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: EMAIL_DEFAULT_FROM
+        sync: false
+      - key: EMAIL_SENDER_BASE_DOMAIN
+        value: lukeflow.com
+      - key: EMAIL_INBOUND_PUBLIC_BASE_URL
+        value: https://platform-prod-auth.onrender.com
+      # Embed + forms/portal HMACs — generateValue = real, stable, per-service (passes InsecureKeyGuard).
+      - key: LUKE_EMBED_HMAC_SECRET
+        generateValue: true
+      - key: FORMS_RECIPIENT_HMAC_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_TENANT_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_HMAC_SECRET
+        generateValue: true
+      - key: FORMS_PORTAL_BASE_URL
+        value: https://platform-prod-portal.onrender.com
+      # Signatures (PAdES sealing keystore — prod certs)
+      - key: LUKE_SIGN_KEYSTORE_BASE64
+        sync: false
+      - key: LUKE_SIGN_KEYSTORE_PASSWORD
+        sync: false
+      - key: LUKE_SIGN_KEY_ALIAS
+        sync: false
+      - key: SIGN_PUBLIC_BASE_URL
+        sync: false
+      # Document store — prod S3 bucket (DocstoreProdGuard requires region when provider=s3)
+      - key: LUKE_DOCSTORE_PROVIDER
+        value: s3
+      - key: LUKE_DOCSTORE_BUCKET
+        value: luke-docstore-prod
+      - key: LUKE_DOCSTORE_REGION
+        value: us-east-2
+      - key: LUKE_DOCSTORE_ACCESS_KEY
+        sync: false
+      - key: LUKE_DOCSTORE_SECRET_KEY
+        sync: false
+      - key: LUKE_RENDER_URL
+        value: https://platform-prod-file-proxy.onrender.com
+      # Observability (OBS-2 metrics lock + OBS-4 Sentry) — DSN/token gated, no-op if unset.
+      - key: MANAGEMENT_METRICS_TOKEN
+        sync: false                                # SAME value on auth + file-proxy + Alloy
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: prod
+
+  # ── platform-prod-auth (consumer gateway) ───────────────────────────────────
+  - type: web
+    name: platform-prod-auth
+    runtime: docker
+    repo: https://github.com/Luke-works/luke-auth-engine
+    branch: main
+    plan: standard
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health/liveness     # liveness only — a core/WorkOS blip must not restart the gateway
+    envVars:
+      - key: CORE_ENGINE_URL
+        value: https://platform-prod-engine.onrender.com
+      - key: CAPABILITIES_BASE_URL
+        value: https://platform-prod-engine.onrender.com
+      - key: FILE_PROXY_URL
+        value: https://platform-prod-file-proxy.onrender.com
+      # PRODUCTION WorkOS project (env environment_01KTHG30DY4BN0EGDTA37J3195).
+      - key: WORKOS_CLIENT_ID
+        sync: false
+      - key: WORKOS_API_KEY
+        sync: false
+      # TODO: these must match the redirect URIs registered on the PROD WorkOS app.
+      - key: WORKOS_REDIRECT_URI
+        value: https://platform-prod-auth.onrender.com/auth/callback
+      - key: WORKOS_UI_CALLBACK_URL
+        value: https://platform-prod-consumer-ui.onrender.com/sso-callback
+      - key: WORKOS_COOKIE_SECURE
+        value: "true"
+      - key: WORKOS_COOKIE_SAMESITE
+        value: Lax
+      - key: ALLOWED_ORIGINS
+        value: https://platform-prod-consumer-ui.onrender.com,https://platform-prod-ui.onrender.com
+      # PROD USES A STABLE SIGNING KEY (not the non-prod ephemeral-per-boot fallback), so the
+      # engine's cached JWKS stays valid across gateway restarts.
+      - key: GATEWAY_REQUIRE_STABLE_KEY
+        value: "true"
+      - key: GATEWAY_PRIVATE_KEY
+        sync: false
+      - fromGroup: platform-prod-gateway           # GATEWAY_VOUCH_SECRET (same value as engine)
+      - key: MANAGEMENT_METRICS_TOKEN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: prod
+
+  # ── platform-prod-file-proxy (DOCUMENTS byte tier) ──────────────────────────
+  # PREREQUISITE: luke-file-proxy has NO `main` branch today — create one off tested develop.
+  - type: web
+    name: platform-prod-file-proxy
+    runtime: docker
+    repo: https://github.com/Luke-works/luke-file-proxy
+    branch: main
+    plan: standard           # 2GB — prod runs headless Chromium for submission-PDF render (starter OOMs)
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: LUKE_CORE_BASE_URL
+        value: https://platform-prod-engine.onrender.com
+      - fromGroup: platform-prod-internal
+      - key: LUKE_DOCSTORE_PROVIDER
+        value: s3
+      - key: LUKE_DOCSTORE_BUCKET
+        value: luke-docstore-prod
+      - key: LUKE_DOCSTORE_REGION
+        value: us-east-2
+      - key: LUKE_DOCSTORE_ACCESS_KEY
+        sync: false
+      - key: LUKE_DOCSTORE_SECRET_KEY
+        sync: false
+      - key: MANAGEMENT_METRICS_TOKEN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: prod
+
+  # ── platform-prod-ui (core-ui / Camunda ops console) ────────────────────────
+  - type: web
+    name: platform-prod-ui
+    runtime: static
+    repo: https://github.com/Luke-works/luke-core-ui
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_API_BASE_URL
+        value: https://platform-prod-engine.onrender.com
+      - key: VITE_SENTRY_DSN
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
+  # ── platform-prod-consumer-ui (end-user app) ────────────────────────────────
+  - type: web
+    name: platform-prod-consumer-ui
+    runtime: static
+    repo: https://github.com/Luke-works/luke-consumer-ui
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_AUTH_API_URL
+        value: https://platform-prod-auth.onrender.com
+      - key: VITE_FORM_AGENT_URL
+        value: https://platform-prod-agents.onrender.com
+      - key: VITE_FORMS_ALLOW_AUTOFILL
+        value: "false"
+      - key: VITE_SENTRY_DSN
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
+  # ── platform-prod-portal (recipient PORTAL — standalone static site) ────────
+  - type: web
+    name: platform-prod-portal
+    runtime: static
+    repo: https://github.com/Luke-works/luke-portal
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: VITE_PORTAL_API_URL
+        value: https://platform-prod-auth.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
+  # ── platform-prod-agents (LukeTalks AI agents) ──────────────────────────────
+  - type: web
+    name: platform-prod-agents
+    runtime: python
+    repo: https://github.com/Luke-works/luke-agents
+    branch: main
+    plan: starter            # bump to standard if transcript/LLM volume warrants
+    region: ohio
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_FALLBACK_MODEL
+        value: llama-3.3-70b-versatile
+      - key: RATE_LIMIT_MAX
+        value: "200"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "10800"
+      # Per-tenant daily token cap (D5-A) — bounds prod AI spend. 0/unset = off.
+      - key: AGENTS_TENANT_DAILY_TOKEN_CAP
+        value: "0"
+      - key: DATABASE_URL
+        fromDatabase: { name: luke-prod-db, property: connectionString }
+      - key: AGENTS_DB_SCHEMA
+        value: luke_agents_prod
+      - key: TRANSCRIPTS_ENABLED
+        value: "true"
+      # Multi-worker rate limit needs Redis; unset = per-instance in-memory. Set if scaling out.
+      - key: REDIS_URL
+        sync: false
+      - key: AGENTS_CORS
+        value: https://platform-prod-consumer-ui.onrender.com,https://platform-prod-ui.onrender.com

@@ -20,10 +20,12 @@ per-service operational runbooks in `luke-core-engine/docs/runbooks/` (DR, rollb
   needs a dedicated **`luke-prod-db`**, the **Production WorkOS** project, and prod secrets before it can be enabled.
 - **Standalone** prod blueprints exist only for `luke-core-engine` (`render.yaml`, `branch: main`),
   `luke-core-ui`, and `luke-agents`. **`luke-auth-engine`, `luke-consumer-ui`, and `luke-file-proxy` have no
-  own `render.yaml`** — today they deploy *only* via the (non-prod) platform bundle. There is no way to ship
-  them to prod until either the `platform-prod-*` scaffold is enabled or standalone prod blueprints are created.
+  own `render.yaml`** — today they deploy *only* via the (non-prod) platform bundle.
 - **`luke-file-proxy` has no `main` branch at all** (only `develop` + `qa`). Even the branch to deploy from
   doesn't exist.
+- **→ ADDRESSED:** a complete, validated prod blueprint for **all 7 services** + a dedicated `luke-prod-db`
+  now exists at **`../render.prod.yaml`** (inert — Render never auto-reads it). Blocker A is now an
+  *activation* task (§1a), not a *build* task; `luke-file-proxy` still needs a `main` branch created (§1a).
 
 **Blocker B — the entire hardening effort is unshipped to prod.**
 - `main` = current prod. `origin/develop` is ahead of `origin/main` by **~187 (core-engine), 286 (consumer-ui),
@@ -44,13 +46,14 @@ the actual cutover once §1 is done.
 - [ ] Create **`luke-prod-db`** (dedicated Postgres, its own instance — NOT the shared `luke-nonprod-db`).
       Enable automated backups; confirm the retention matches the DR target (`docs/runbooks/README.md` says
       RPO ≤24h / RTO ≤2h — **and that a restore has never been rehearsed**; rehearse one, see §7).
-- [ ] Decide the prod deploy shape and build it:
-      **(A)** enable the `platform-prod-*` scaffold in `luke-platform/render.yaml` (uncomment ≈L832–865, wire
-      `luke-prod-db`, add prod env-var groups), **or**
-      **(B)** create standalone `render.yaml` prod blueprints for `luke-auth-engine`, `luke-consumer-ui`,
-      `luke-file-proxy` (mirroring the dev/qa service blocks in the platform bundle).
+- [ ] **Activate the prod blueprint.** `../render.prod.yaml` is a complete, validated 7-service prod
+      definition + `luke-prod-db` (built for this — supersedes the partial disabled scaffold in
+      `render.yaml`). Render only reads a file literally named `render.yaml`, so activate it via **a dedicated
+      `prod-blueprint` branch** of luke-platform (whose `render.yaml` == that file) or **a separate prod repo**,
+      connected as its own Render Blueprint (separate DB). See the file's header for the exact steps + the
+      `sync:false` secrets to fill.
 - [ ] Create a **`main` branch on `luke-file-proxy`** (and any other service missing one) off the tested
-      `develop` tip.
+      `develop` tip — `render.prod.yaml` deploys file-proxy from `main`, which does not exist yet.
 - [ ] Confirm the **Production WorkOS** project/env is the one wired into prod auth
       (`environment_01KTHG30DY4BN0EGDTA37J3195`).
 

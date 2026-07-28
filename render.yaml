@@ -829,7 +829,11 @@ services:
       - key: AGENTS_CORS
         value: https://consqa.lukeflow.com,https://coreqa.lukeflow.com,https://platform-qa-consumer-ui.onrender.com,https://platform-qa-ui.onrender.com
 
-  # ── platform-prod-engine (DISABLED scaffold — S3 doc store + strict prod profile) ──
+  # ── platform-prod-engine (DISABLED scaffold — SUPERSEDED) ──
+  # ⚠️ SUPERSEDED: a COMPLETE prod blueprint for all 7 services + a dedicated luke-prod-db now lives in
+  # ../render.prod.yaml (repo root: render.prod.yaml). Do NOT uncomment this partial block — activate that
+  # file instead (see its header + cutover/RUNBOOK.md §1a). This stub is kept only for historical context.
+  #
   # Stood up for the DOCUMENTS rollout: the prod bucket luke-docstore-prod is real
   # (infra/s3/provision-docstore.sh --env prod --bucket luke-docstore-prod), with
   # Object Lock COMPLIANCE available for signed PDFs (DOC-5). This block only wires the
