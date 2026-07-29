@@ -98,3 +98,68 @@ env-var step, not a code change** — OBS-0 (uptime monitor), OBS-1 (frontend DS
 (Grafana Cloud + collector), OBS-5 (alert rules). Until those are provisioned the fleet
 publishes telemetry that nothing is listening to, so the original gap — *nothing alerts a
 human* — is still open despite two tickets being green.
+
+## Forms — Minions
+
+### MINIONS V1 — catalog, contract, and design-time validation
+**Status:** 📋 PLANNED · **Added:** 2026-07-29
+
+A **minion** is a named server-side operation a form field can invoke — option data sources,
+async validations, an address-lookup provider. The security design is already right and is not
+what this changes: credentials live server-side, the browser only names an operation, the public
+embed path reaches only minions that explicitly `publicAllowed()`, and both paths are rate-limited.
+
+What's missing is that a minion is currently a **string an author types**, not a capability the
+system declares. The builder renders a free-text box (`placeholder="listCities"`,
+`placeholder="checkEmail"`); exactly one minion exists server-side (`geocode`); and nothing
+reconciles the two. A typo, a wrong-kind wiring (a geocoder in an async-validation slot), or a
+reference to a minion that was never built all produce **no error at design time and silence at
+fill time** — the field simply never populates. Async validation is worse: the builder offers the
+tab, form-react runs it on submit, and there is no implementation of any kind behind it.
+
+**The shape of the fix:** make a minion declare itself, publish the catalog, and validate against it.
+
+**M0 · Descriptor + discovery.** Extend the `Minion` SPI with `describe()` returning a
+`MinionDescriptor` — `name`, human `title`/`description`, a `kind` (`OPTIONS` | `VALIDATION` |
+`LOOKUP`), its declared `params` (name, required, description), and for OPTIONS the default
+`resultPath`/`labelPath`/`valuePath` so an author isn't guessing dot-paths. Serve it from an
+authenticated, tenant-scoped `GET /api/minions`. Deliberately NOT public: the public endpoint
+already returns an identical 404 for "unknown" and "internal-only" so it can't be used to
+enumerate operations, and discovery is a design-time concern. Ships alone, changes no UI.
+
+**M1 · The builder picks from the catalog.** Replace both free-text boxes with a select fed by
+`GET /api/minions`, filtered by `kind` — so a validation minion can't be wired as a data source.
+Render the descriptor's declared params as a param → field-key mapping table, and prefill the
+result paths. Keep free text behind an "advanced" toggle so a minion newer than the UI stays
+reachable.
+
+**M2 · Fail at design time, not fill time.** A Problems-panel diagnostic when a field references
+an unknown minion, one of the wrong kind, or omits a required param — this is the ticket that
+converts today's silent runtime nothing into a red mark while authoring. Plus a publish-time
+check: publishing is already gated on sign-off; add "every referenced minion resolves". A form
+that references a deleted operation must not become the live version.
+
+**M3 · Per-tenant authorization + param validation.** Today any tenant may call any registered
+minion; a metered provider (geocoding) has no tier gate. Add a `MinionAccess` check alongside the
+existing rate limits, and validate the request body against the descriptor before `handle()` runs
+rather than passing an arbitrary map through. Also make degradation explicit in the descriptor —
+`failureMode: DEGRADE | FAIL_OPEN`. An OPTIONS minion that's down should fall back to manual
+entry (as `geocode` already does when unconfigured); a VALIDATION minion that's down must FAIL
+OPEN, matching form-core's async-validation contract. Never block a submission because a checker
+was unreachable.
+
+**M4 · A second minion, to prove the SPI.** A catalog with one entry proves nothing. `checkEmail`
+(kind `VALIDATION`) is the natural second: it's the placeholder the builder already advertises,
+and it's the implementation whose absence makes the async-validation tab a dead end. Add a
+short-TTL server-side cache for idempotent OPTIONS/LOOKUP calls (declared per descriptor —
+type-ahead currently hits the provider per keystroke, and rate limits bound abuse, not cost), and
+a per-minion Micrometer timer + outcome counter. OBS-2 already ships the Prometheus endpoint, so
+"which minion is slow, failing, or expensive" becomes answerable for nearly free.
+
+**Touches:** `luke-core-engine` (`capability/minion`), `luke-forms` (`form-core` datasource
+contract — likely unchanged; `form-builder` editors), `luke-consumer-ui` (minion client, catalog
+fetch), `luke-docs`.
+
+**Not in scope.** The credential model, the public opt-in, and the rate limits are already correct
+and stay as they are. This is about making the operation surface *discoverable and checkable*, not
+about changing who is trusted.
