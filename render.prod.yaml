@@ -132,6 +132,21 @@ services:
       # Embed + forms/portal HMACs — generateValue = real, stable, per-service (passes InsecureKeyGuard).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # Cloudflare Turnstile on the PUBLIC embed submit surface. REQUIRED here, and required as a
+      # PAIR — issued together by Cloudflare, so a half-set pair is worse than none: a TEST secret
+      # rejects REAL tokens, which would refuse every genuine embed submission. sync:false because
+      # Cloudflare issues them; they are not ours to generate.
+      #
+      # This service runs SPRING_PROFILES_ACTIVE=postgres,prod, so an UNREACHABLE Cloudflare fails
+      # CLOSED (dev/qa fail open). A missing or invalid token is refused in every profile.
+      #
+      # ALSO NOT AN ENV VAR: the widget's hostname allowlist in the Cloudflare dashboard must include
+      # whatever host serves /embed/{token} (this engine's domain). Miss it and every key is correct
+      # while every submission still fails.
+      - key: LUKE_EMBED_CAPTCHA_SITEKEY
+        sync: false
+      - key: LUKE_EMBED_CAPTCHA_SECRET
+        sync: false
       - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
       - key: FORMS_PORTAL_TENANT_SECRET

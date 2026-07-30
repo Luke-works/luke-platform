@@ -134,6 +134,16 @@ services:
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # Cloudflare Turnstile on the PUBLIC embed submit surface. OPTIONAL here: unset, the engine
+      # falls back to Cloudflare's published always-pass TEST pair, so dev/qa work with no Cloudflare
+      # account. Set both (never one) only to exercise the real widget — the keys are PAIRED, and a
+      # real secret rejects test tokens just as a test secret rejects real ones.
+      # Non-prod runs SPRING_PROFILES_ACTIVE=postgres (no `prod`), so an unreachable Cloudflare
+      # fails OPEN here and cannot break the environment.
+      - key: LUKE_EMBED_CAPTCHA_SITEKEY
+        sync: false
+      - key: LUKE_EMBED_CAPTCHA_SECRET
+        sync: false
       # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
@@ -530,6 +540,16 @@ services:
       # sets LUKE_SECRETS_ACTIVE_KEY_ID=v1 + LUKE_SECRETS_KEYS_V1 (real key).
       - key: LUKE_EMBED_HMAC_SECRET
         generateValue: true
+      # Cloudflare Turnstile on the PUBLIC embed submit surface. OPTIONAL here: unset, the engine
+      # falls back to Cloudflare's published always-pass TEST pair, so dev/qa work with no Cloudflare
+      # account. Set both (never one) only to exercise the real widget — the keys are PAIRED, and a
+      # real secret rejects test tokens just as a test secret rejects real ones.
+      # Non-prod runs SPRING_PROFILES_ACTIVE=postgres (no `prod`), so an unreachable Cloudflare
+      # fails OPEN here and cannot break the environment.
+      - key: LUKE_EMBED_CAPTCHA_SITEKEY
+        sync: false
+      - key: LUKE_EMBED_CAPTCHA_SECRET
+        sync: false
       # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
