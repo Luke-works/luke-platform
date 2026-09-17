@@ -147,6 +147,25 @@ services:
         sync: false
       - key: LUKE_EMBED_CAPTCHA_SECRET
         sync: false
+      # ── Form payments (Stripe Connect, bring-your-own-account, direct charges, no fee) ──
+      # Config-gated: payments need the platform secret key + publishable key + Connect client id.
+      # Live keys only here (sk_live/pk_live, a live Connect client id + live webhook secret); the
+      # engine refuses a test/live mix. Checklist: luke-core-engine docs/runbooks/form-payments.md.
+      # STRIPE_SECRET_KEY is shared with billing (same Stripe platform account).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_CONNECT_CLIENT_ID
+        sync: false
+      # Signing secret of the "connected accounts" webhook endpoint → <engine>/webhooks/stripe-connect
+      # (NOT billing's /webhooks/stripe secret). Stripe calls the engine directly.
+      - key: STRIPE_CONNECT_WEBHOOK_SECRET
+        sync: false
+      # Where Stripe sends the owner back after connecting — also register it in Stripe's Connect OAuth
+      # settings.
+      - key: LUKE_PAYMENTS_CONNECT_REDIRECT_URL
+        value: https://platform-prod-consumer-ui.onrender.com/forms/payments
       - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
       - key: FORMS_PORTAL_TENANT_SECRET
