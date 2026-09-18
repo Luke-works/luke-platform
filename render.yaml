@@ -144,6 +144,24 @@ services:
         sync: false
       - key: LUKE_EMBED_CAPTCHA_SECRET
         sync: false
+      # ── Form payments (Stripe Connect, bring-your-own-account, direct charges, no fee) ──
+      # Config-gated: payments need the platform secret key + publishable key + Connect client id.
+      # Test-mode keys (sk_test/pk_test). Unset → payments self-disable: nothing else changes.
+      # STRIPE_SECRET_KEY is shared with billing (same Stripe platform account).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_CONNECT_CLIENT_ID
+        sync: false
+      # Signing secret of the "connected accounts" webhook endpoint → <engine>/webhooks/stripe-connect
+      # (NOT billing's /webhooks/stripe secret). Stripe calls the engine directly.
+      - key: STRIPE_CONNECT_WEBHOOK_SECRET
+        sync: false
+      # Where Stripe sends the owner back after connecting — also register it in Stripe's Connect OAuth
+      # settings.
+      - key: LUKE_PAYMENTS_CONNECT_REDIRECT_URL
+        value: https://consdev.lukeflow.com/forms/payments
       # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
@@ -550,6 +568,24 @@ services:
         sync: false
       - key: LUKE_EMBED_CAPTCHA_SECRET
         sync: false
+      # ── Form payments (Stripe Connect, bring-your-own-account, direct charges, no fee) ──
+      # Config-gated: payments need the platform secret key + publishable key + Connect client id.
+      # Test-mode keys (sk_test/pk_test). Unset → payments self-disable: nothing else changes.
+      # STRIPE_SECRET_KEY is shared with billing (same Stripe platform account).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_CONNECT_CLIENT_ID
+        sync: false
+      # Signing secret of the "connected accounts" webhook endpoint → <engine>/webhooks/stripe-connect
+      # (NOT billing's /webhooks/stripe secret). Stripe calls the engine directly.
+      - key: STRIPE_CONNECT_WEBHOOK_SECRET
+        sync: false
+      # Where Stripe sends the owner back after connecting — also register it in Stripe's Connect OAuth
+      # settings.
+      - key: LUKE_PAYMENTS_CONNECT_REDIRECT_URL
+        value: https://consqa.lukeflow.com/forms/payments
       # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
