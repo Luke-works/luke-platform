@@ -378,8 +378,6 @@ services:
       - key: VITE_AUTH_API_URL
         value: https://authdev.lukeflow.com
       # LukeTalks form-builder agent (root /chat alias on the agents service).
-      - key: VITE_FORM_AGENT_URL
-        value: https://platform-dev-agents.onrender.com
       # Forms autofill is suppressed on every input by default; "true" lets browsers/password
       # managers autofill normally. Explicit "false" keeps the suppression policy visible here.
       # NOTE: this controls the dashboard app only — the embedded-form bundle is vendored into
@@ -797,8 +795,6 @@ services:
       - key: VITE_AUTH_API_URL
         value: https://authqa.lukeflow.com
       # LukeTalks form-builder agent (root /chat alias on the agents service).
-      - key: VITE_FORM_AGENT_URL
-        value: https://platform-qa-agents.onrender.com
       # Forms autofill is suppressed on every input by default; "true" lets browsers/password
       # managers autofill normally. Explicit "false" keeps the suppression policy visible here.
       # NOTE: this controls the dashboard app only — the embedded-form bundle is vendored into

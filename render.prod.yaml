@@ -354,8 +354,6 @@ services:
         value: 22.12.0
       - key: VITE_AUTH_API_URL
         value: https://platform-prod-auth.onrender.com
-      - key: VITE_FORM_AGENT_URL
-        value: https://platform-prod-agents.onrender.com
       - key: VITE_FORMS_ALLOW_AUTOFILL
         value: "false"
       - key: VITE_SENTRY_DSN
