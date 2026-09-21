@@ -66,6 +66,20 @@ envVarGroups:
     envVars:
       - key: LUKE_INTERNAL_SHARED_SECRET
         generateValue: true
+# ── engine <-> agent fleet ───────────────────────────────────────────────────
+# The engine is the fleet's ONLY caller: it holds each workspace's own LLM key and attaches
+# it to the turn. Generated once per env and injected into both sides, so the engine's key
+# and the fleet's can never drift apart and 401 every turn. The fleet reads it as
+# AGENTS_API_KEY; the engine falls back to that same name. Its OWN group, not the internal
+# one — the fleet has no business holding the engine<->file-proxy secret.
+  - name: platform-dev-agents-key
+    envVars:
+      - key: AGENTS_API_KEY
+        generateValue: true
+  - name: platform-qa-agents-key
+    envVars:
+      - key: AGENTS_API_KEY
+        generateValue: true
 
 services:
   # ── platform-dev ──────────────────────────────────────────────────────────
@@ -162,6 +176,14 @@ services:
       # settings.
       - key: LUKE_PAYMENTS_CONNECT_REDIRECT_URL
         value: https://consdev.lukeflow.com/forms/payments
+      # ── AI assistant (bring your own key) ────────────────────────────────────────────
+      # Where the agent fleet lives. Unset → the whole AI feature self-disables (the connect
+      # page says so, the agent proxy 404s); nothing else changes. NOT a provider key: under
+      # BYO-key there is no platform LLM key anywhere in the engine — each workspace's key is
+      # decrypted from luke_secrets on its way to a turn.
+      - key: LUKE_AI_AGENTS_URL
+        value: https://platform-dev-agents.onrender.com
+      - fromGroup: platform-dev-agents-key
       # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
@@ -466,13 +488,21 @@ services:
       # Pin Python to a version with prebuilt wheels (3.14 has no pydantic-core wheel).
       - key: PYTHON_VERSION
         value: "3.12.8"
-      # Groq key — set per service in the dashboard (sync:false keeps it out of git).
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
-      - key: GROQ_FALLBACK_MODEL
-        value: llama-3.3-70b-versatile
+      # ── BRING YOUR OWN KEY ──────────────────────────────────────────────────────────
+      # There is deliberately NO platform provider key here. Every turn runs on the calling
+      # workspace's own account: the engine decrypts their key and attaches it to the
+      # request. AGENTS_REQUIRE_CREDENTIAL makes that mandatory — a turn with no credential
+      # is refused (402) rather than falling back to a key we pay for. That is also what
+      # closes the old hole where an unauthenticated caller could burn our tokens: with no
+      # platform key in the request path, there is nothing to spend.
+      - key: AGENTS_REQUIRE_CREDENTIAL
+        value: "true"
+      # Only the engine may call the fleet; it presents this as X-Agents-Key. Generated in
+      # the shared group above, so both sides always hold the same value.
+      - fromGroup: platform-dev-agents-key
+      # The engine sets the tenant from the verified session, so fail closed without one.
+      - key: AGENTS_REQUIRE_TENANT
+        value: "true"
       # Per-user cap: 200 actions / 3h to bound AI spend.
       - key: RATE_LIMIT_MAX
         value: "200"
@@ -586,6 +616,14 @@ services:
       # settings.
       - key: LUKE_PAYMENTS_CONNECT_REDIRECT_URL
         value: https://consqa.lukeflow.com/forms/payments
+      # ── AI assistant (bring your own key) ────────────────────────────────────────────
+      # Where the agent fleet lives. Unset → the whole AI feature self-disables (the connect
+      # page says so, the agent proxy 404s); nothing else changes. NOT a provider key: under
+      # BYO-key there is no platform LLM key anywhere in the engine — each workspace's key is
+      # decrypted from luke_secrets on its way to a turn.
+      - key: LUKE_AI_AGENTS_URL
+        value: https://platform-qa-agents.onrender.com
+      - fromGroup: platform-qa-agents-key
       # Recipient fill-session HMAC (outbound forms, minted post-OTP). InsecureKeyGuard
       # fail-fasts on the dev default under the prod profile — generate a real value.
       - key: FORMS_RECIPIENT_HMAC_SECRET
@@ -864,12 +902,21 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
-      - key: GROQ_FALLBACK_MODEL
-        value: llama-3.3-70b-versatile
+      # ── BRING YOUR OWN KEY ──────────────────────────────────────────────────────────
+      # There is deliberately NO platform provider key here. Every turn runs on the calling
+      # workspace's own account: the engine decrypts their key and attaches it to the
+      # request. AGENTS_REQUIRE_CREDENTIAL makes that mandatory — a turn with no credential
+      # is refused (402) rather than falling back to a key we pay for. That is also what
+      # closes the old hole where an unauthenticated caller could burn our tokens: with no
+      # platform key in the request path, there is nothing to spend.
+      - key: AGENTS_REQUIRE_CREDENTIAL
+        value: "true"
+      # Only the engine may call the fleet; it presents this as X-Agents-Key. Generated in
+      # the shared group above, so both sides always hold the same value.
+      - fromGroup: platform-qa-agents-key
+      # The engine sets the tenant from the verified session, so fail closed without one.
+      - key: AGENTS_REQUIRE_TENANT
+        value: "true"
       - key: RATE_LIMIT_MAX
         value: "200"
       - key: RATE_LIMIT_WINDOW_SECONDS
