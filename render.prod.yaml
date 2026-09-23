@@ -38,7 +38,7 @@
 #   auth:        WORKOS_CLIENT_ID, WORKOS_API_KEY, GATEWAY_PRIVATE_KEY (PEM PKCS#8 — prod is
 #                stable-key, NOT ephemeral), MANAGEMENT_METRICS_TOKEN, SENTRY_DSN
 #   file-proxy:  LUKE_DOCSTORE_ACCESS_KEY, LUKE_DOCSTORE_SECRET_KEY, MANAGEMENT_METRICS_TOKEN, SENTRY_DSN
-#   agents:      GROQ_API_KEY (+ OPENAI_API_KEY / REDIS_URL if used)
+#   agents:      none — BYO-key means no platform provider key anywhere (REDIS_URL only if scaling out)
 #   UIs:         VITE_SENTRY_DSN (baked at build — set BEFORE deploy)
 #   MANAGEMENT_METRICS_TOKEN must be the SAME value on engine+auth+file-proxy AND the
 #   observability/ Alloy collector. GATEWAY_VOUCH_SECRET + LUKE_INTERNAL_SHARED_SECRET are
@@ -62,6 +62,13 @@ envVarGroups:
   - name: platform-prod-internal      # engine <-> file-proxy shared secret (/api/internal/**)
     envVars:
       - key: LUKE_INTERNAL_SHARED_SECRET
+        generateValue: true
+  - name: platform-prod-agents-key    # engine <-> agents: only the engine may call the fleet
+    envVars:
+      # The engine is the fleet's ONLY caller: it holds each workspace's own LLM key and
+      # attaches it to the turn. Generated once so both sides always hold the same value.
+      # The fleet reads it as AGENTS_API_KEY; the engine falls back to that same name.
+      - key: AGENTS_API_KEY
         generateValue: true
   - name: platform-prod-gateway       # engine <-> auth: proof-of-origin lock for the public surface
     envVars:
@@ -166,6 +173,13 @@ services:
       # settings.
       - key: LUKE_PAYMENTS_CONNECT_REDIRECT_URL
         value: https://platform-prod-consumer-ui.onrender.com/forms/payments
+      # ── AI assistant (bring your own key) ────────────────────────────────────────────
+      # Where the agent fleet lives. Unset → the AI feature self-disables. NOT a provider
+      # key: under BYO-key there is no platform LLM key in the engine at all — each
+      # workspace's key is decrypted from luke_secrets on its way to a turn.
+      - key: LUKE_AI_AGENTS_URL
+        value: https://platform-prod-agents.onrender.com
+      - fromGroup: platform-prod-agents-key
       - key: FORMS_RECIPIENT_HMAC_SECRET
         generateValue: true
       - key: FORMS_PORTAL_TENANT_SECRET
@@ -340,8 +354,6 @@ services:
         value: 22.12.0
       - key: VITE_AUTH_API_URL
         value: https://platform-prod-auth.onrender.com
-      - key: VITE_FORM_AGENT_URL
-        value: https://platform-prod-agents.onrender.com
       - key: VITE_FORMS_ALLOW_AUTOFILL
         value: "false"
       - key: VITE_SENTRY_DSN
@@ -428,12 +440,20 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
-      - key: GROQ_FALLBACK_MODEL
-        value: llama-3.3-70b-versatile
+      # ── BRING YOUR OWN KEY ──────────────────────────────────────────────────────────
+      # There is deliberately NO platform provider key here. Every turn runs on the calling
+      # workspace's own account: the engine decrypts their key and attaches it to the
+      # request. AGENTS_REQUIRE_CREDENTIAL makes that mandatory — a turn with no credential
+      # is refused (402) rather than falling back to a key we pay for. AGENTS_ENV=production
+      # below refuses to boot without it.
+      - key: AGENTS_ENV
+        value: production
+      - key: AGENTS_REQUIRE_CREDENTIAL
+        value: "true"
+      - key: AGENTS_REQUIRE_TENANT
+        value: "true"
+      # Only the engine may call the fleet; it presents this as X-Agents-Key.
+      - fromGroup: platform-prod-agents-key
       - key: RATE_LIMIT_MAX
         value: "200"
       - key: RATE_LIMIT_WINDOW_SECONDS
