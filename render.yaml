@@ -480,7 +480,12 @@ services:
     plan: starter
     region: ohio
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    # TWO workers, not one. Every agent endpoint is a sync `def`, so a worker's anyio threadpool
+    # (raised to AGENTS_THREADPOOL in-process) is its concurrency ceiling — but one process also
+    # means one GIL for JSON encode/decode and schema validation, and a single redeploy or crash
+    # takes the whole service. Two fits a starter box because these handlers are network-bound and
+    # mostly idle; memory, not CPU, is the limit if this goes higher.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
     healthCheckPath: /health
     envVars:
       # Pin Python to a version with prebuilt wheels (3.14 has no pydantic-core wheel).
@@ -514,6 +519,20 @@ services:
           property: connectionString
       - key: AGENTS_DB_SCHEMA
         value: luke_agents_dev
+      # Capacity. Every agent endpoint is a sync `def`, so anyio's threadpool is each worker's
+      # concurrency ceiling; its default of 40 was sized when a turn was ONE provider call. A
+      # LukeBuilds research turn is three (build -> web search -> rebuild) and holds its slot
+      # roughly three times as long. Raising it is nearly free because these handlers sit blocked
+      # on a provider socket rather than burning CPU.
+      - key: AGENTS_THREADPOOL
+        value: "160"
+      # The transcript pool must not be the new bottleneck: 1..5 connections behind 160 threads
+      # meant PoolError-and-retry under load. Per worker, so keep the total inside Postgres'
+      # max_connections across every service sharing this database.
+      - key: AGENTS_DB_POOL_MIN
+        value: "2"
+      - key: AGENTS_DB_POOL_MAX
+        value: "12"
       - key: TRANSCRIPTS_ENABLED
         value: "true"
       # Lock browser CORS to the consumer-ui Form Builder origin(s).
@@ -893,7 +912,12 @@ services:
     plan: starter
     region: ohio
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    # TWO workers, not one. Every agent endpoint is a sync `def`, so a worker's anyio threadpool
+    # (raised to AGENTS_THREADPOOL in-process) is its concurrency ceiling — but one process also
+    # means one GIL for JSON encode/decode and schema validation, and a single redeploy or crash
+    # takes the whole service. Two fits a starter box because these handlers are network-bound and
+    # mostly idle; memory, not CPU, is the limit if this goes higher.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -923,6 +947,20 @@ services:
           property: connectionString
       - key: AGENTS_DB_SCHEMA
         value: luke_agents_qa
+      # Capacity. Every agent endpoint is a sync `def`, so anyio's threadpool is each worker's
+      # concurrency ceiling; its default of 40 was sized when a turn was ONE provider call. A
+      # LukeBuilds research turn is three (build -> web search -> rebuild) and holds its slot
+      # roughly three times as long. Raising it is nearly free because these handlers sit blocked
+      # on a provider socket rather than burning CPU.
+      - key: AGENTS_THREADPOOL
+        value: "160"
+      # The transcript pool must not be the new bottleneck: 1..5 connections behind 160 threads
+      # meant PoolError-and-retry under load. Per worker, so keep the total inside Postgres'
+      # max_connections across every service sharing this database.
+      - key: AGENTS_DB_POOL_MIN
+        value: "2"
+      - key: AGENTS_DB_POOL_MAX
+        value: "12"
       - key: TRANSCRIPTS_ENABLED
         value: "true"
       - key: AGENTS_CORS
@@ -1093,7 +1131,7 @@ services:
 #     plan: starter
 #     region: ohio
 #     buildCommand: pip install -r requirements.txt
-#     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+#     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
 #     healthCheckPath: /health
 #     envVars:
 #       - key: PYTHON_VERSION
